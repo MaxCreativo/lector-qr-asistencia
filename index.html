@@ -264,7 +264,7 @@
         <div class="panel-titulo">Resultado del registro</div>
 
         <div class="fila">
-          <div class="etiqueta">ID</div>
+          <div class="etiqueta">Matrícula</div>
           <div class="valor" id="idValor">—</div>
         </div>
 
@@ -291,270 +291,122 @@
       </div>
     </div>
 
-    <iframe name="frameOculto" style="display:none;"></iframe>
     <iframe id="frameRegistroGet" name="frameRegistroGet" style="display:none;"></iframe>
 
-    <form id="formEnvio" method="POST" target="frameOculto" style="display:none;">
-      <input type="hidden" name="valor" id="valorInput">
-      <input type="hidden" name="correo" id="correoInput">
-    </form>
-<script>
-  const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyGbaWGVQrITsl985pYRA0IIVJDlO50Ry9qx4TJeu748NaraSW_Z55eDz5y5dJ5uC5q/exec';
+    <script>
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
 
-  const video = document.getElementById('video');
-  const canvas = document.getElementById('canvas');
-  const ctx = canvas.getContext('2d');
+      const overlay = document.getElementById('overlay');
+      const overlayCtx = overlay.getContext('2d');
 
-  const overlay = document.getElementById('overlay');
-  const overlayCtx = overlay.getContext('2d');
+      const estado = document.getElementById('estado');
+      const nombreGrande = document.getElementById('nombreGrande');
+      const idValor = document.getElementById('idValor');
+      const nombreValor = document.getElementById('nombreValor');
+      const resultado = document.getElementById('resultado');
+      const contenidoQR = document.getElementById('contenidoQR');
+      const cameraSelect = document.getElementById('cameraSelect');
 
-  const estado = document.getElementById('estado');
-  const nombreGrande = document.getElementById('nombreGrande');
-  const idValor = document.getElementById('idValor');
-  const nombreValor = document.getElementById('nombreValor');
-  const resultado = document.getElementById('resultado');
-  const contenidoQR = document.getElementById('contenidoQR');
-  const cameraSelect = document.getElementById('cameraSelect');
+      let streamActual = null;
+      let escaneando = false;
+      let procesando = false;
+      let ultimoCodigo = '';
+      let ultimoTiempoLectura = 0;
+      let camaraSeleccionadaId = '';
 
-  let streamActual = null;
-  let escaneando = false;
-  let procesando = false;
-  let ultimoCodigo = '';
-  let ultimoTiempoLectura = 0;
-  let camaraSeleccionadaId = '';
-
-  function esIOS_() {
-    return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-  }
-
-  function setEstado(texto, tipo) {
-    estado.textContent = texto;
-    estado.className = '';
-
-    if (tipo === 'ok') estado.classList.add('ok-bg');
-    else if (tipo === 'error') estado.classList.add('error-bg');
-    else estado.classList.add('info-bg');
-  }
-
-  function beepOk() {
-    try {
-      const audio = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
-      audio.play();
-    } catch (e) {}
-  }
-
-  function beepError() {
-    try {
-      const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-      audio.play();
-    } catch (e) {}
-  }
-
-  function vibrar(tipo) {
-    if (!navigator.vibrate) return;
-    if (tipo === 'ok') navigator.vibrate([120, 60, 120]);
-    else navigator.vibrate([200, 80, 200]);
-  }
-
-  function limpiarPanel() {
-    nombreGrande.textContent = '';
-    idValor.textContent = '—';
-    nombreValor.textContent = '—';
-    resultado.textContent = 'Esperando lectura...';
-    contenidoQR.textContent = 'Sin lectura todavía.';
-  }
-
-  function limpiarOverlay() {
-    overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
-  }
-
-  function ajustarOverlay() {
-    const rect = video.getBoundingClientRect();
-    overlay.width = rect.width;
-    overlay.height = rect.height;
-    limpiarOverlay();
-  }
-
-  function dibujarLinea(inicio, fin, color, ancho) {
-    overlayCtx.beginPath();
-    overlayCtx.moveTo(inicio.x, inicio.y);
-    overlayCtx.lineTo(fin.x, fin.y);
-    overlayCtx.lineWidth = ancho;
-    overlayCtx.strokeStyle = color;
-    overlayCtx.stroke();
-  }
-
-  function dibujarMarcoQR(location) {
-    limpiarOverlay();
-
-    if (!location) return;
-
-    const sx = overlay.width / canvas.width;
-    const sy = overlay.height / canvas.height;
-
-    const topLeft = { x: location.topLeftCorner.x * sx, y: location.topLeftCorner.y * sy };
-    const topRight = { x: location.topRightCorner.x * sx, y: location.topRightCorner.y * sy };
-    const bottomRight = { x: location.bottomRightCorner.x * sx, y: location.bottomRightCorner.y * sy };
-    const bottomLeft = { x: location.bottomLeftCorner.x * sx, y: location.bottomLeftCorner.y * sy };
-
-    dibujarLinea(topLeft, topRight, '#22c55e', 4);
-    dibujarLinea(topRight, bottomRight, '#22c55e', 4);
-    dibujarLinea(bottomRight, bottomLeft, '#22c55e', 4);
-    dibujarLinea(bottomLeft, topLeft, '#22c55e', 4);
-  }
-
-  async function registrarAsistencia(params) {
-    const url = new URL(WEBAPP_URL);
-    url.searchParams.set('matricula', params.matricula || '');
-    url.searchParams.set('nombre', params.nombre || '');
-
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      credentials: 'include'
-    });
-
-    const text = await response.text();
-
-    let data;
-    try {
-      data = JSON.parse(text);
-    } catch (e) {
-      throw new Error('El Web App no devolvió JSON válido: ' + text);
-    }
-
-    if (!data.success) {
-      throw new Error(data.message || 'No se pudo registrar la asistencia.');
-    }
-
-    return data;
-  }
-
-  async function cargarCamaras() {
-    try {
-      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-        cameraSelect.innerHTML = '<option value="">Tu navegador no soporta cámaras</option>';
-        return;
+      function esIOS_() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
       }
 
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      const cameras = devices.filter(device => device.kind === 'videoinput');
+      function setEstado(texto, tipo) {
+        estado.textContent = texto;
+        estado.className = '';
 
-      cameraSelect.innerHTML = '';
-
-      if (!cameras.length) {
-        cameraSelect.innerHTML = '<option value="">No se encontraron cámaras</option>';
-        return;
+        if (tipo === 'ok') estado.classList.add('ok-bg');
+        else if (tipo === 'error') estado.classList.add('error-bg');
+        else estado.classList.add('info-bg');
       }
 
-      cameras.forEach((camera, index) => {
-        const option = document.createElement('option');
-        option.value = camera.deviceId;
-        option.textContent = camera.label || ('Cámara ' + (index + 1));
-        cameraSelect.appendChild(option);
-      });
-
-      const preferida = cameras.find(cam => /back|rear|trasera|environment/i.test(cam.label || ''));
-      camaraSeleccionadaId = preferida ? preferida.deviceId : cameras[0].deviceId;
-      cameraSelect.value = camaraSeleccionadaId;
-
-    } catch (error) {
-      cameraSelect.innerHTML = '<option value="">Error cargando cámaras</option>';
-    }
-  }
-
-  async function aplicarCamaraSeleccionada() {
-    camaraSeleccionadaId = cameraSelect.value || '';
-    await iniciarCamara();
-  }
-
-  async function iniciarCamara() {
-    detenerCamara();
-    limpiarPanel();
-    setEstado('Solicitando acceso a la cámara...', 'info');
-
-    try {
-      if (!window.isSecureContext) {
-        throw new Error('La página no está en contexto seguro HTTPS.');
+      function beepOk() {
+        try {
+          const audio = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
+          audio.play();
+        } catch (e) {}
       }
 
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('Este navegador no soporta getUserMedia().');
+      function beepError() {
+        try {
+          const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+          audio.play();
+        } catch (e) {}
       }
 
-      const constraints = camaraSeleccionadaId
-        ? {
-            video: {
-              deviceId: { exact: camaraSeleccionadaId },
-              width: { ideal: 1280 },
-              height: { ideal: 1280 }
-            },
-            audio: false
-          }
-        : {
-            video: {
-              width: { ideal: 1280 },
-              height: { ideal: 1280 }
-            },
-            audio: false
-          };
+      function vibrar(tipo) {
+        if (!navigator.vibrate) return;
+        if (tipo === 'ok') navigator.vibrate([120, 60, 120]);
+        else navigator.vibrate([200, 80, 200]);
+      }
 
-      streamActual = await navigator.mediaDevices.getUserMedia(constraints);
+      function limpiarPanel() {
+        nombreGrande.textContent = '';
+        idValor.textContent = '—';
+        nombreValor.textContent = '—';
+        resultado.textContent = 'Esperando lectura...';
+        contenidoQR.textContent = 'Sin lectura todavía.';
+      }
 
-      video.srcObject = streamActual;
-      await video.play();
+      function limpiarOverlay() {
+        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+      }
 
-      ajustarOverlay();
-      await cargarCamaras();
+      function ajustarOverlay() {
+        const rect = video.getBoundingClientRect();
+        overlay.width = rect.width;
+        overlay.height = rect.height;
+        limpiarOverlay();
+      }
 
-      escaneando = true;
-      procesando = false;
+      function dibujarLinea(inicio, fin, color, ancho) {
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(inicio.x, inicio.y);
+        overlayCtx.lineTo(fin.x, fin.y);
+        overlayCtx.lineWidth = ancho;
+        overlayCtx.strokeStyle = color;
+        overlayCtx.stroke();
+      }
 
-      setEstado('Apunta el QR dentro del recuadro', 'info');
-      resultado.textContent = 'Escaneo continuo activo...';
+      function dibujarMarcoQR(location) {
+        limpiarOverlay();
 
-      requestAnimationFrame(leerFrame);
-    } catch (error) {
-      setEstado('No se pudo abrir la cámara', 'error');
-      resultado.textContent = error && error.message ? error.message : String(error);
-      beepError();
-      vibrar('error');
-    }
-  }
+        if (!location) return;
 
-  async function leerFrame() {
-    if (!escaneando || procesando) return;
+        const sx = overlay.width / canvas.width;
+        const sy = overlay.height / canvas.height;
 
-    if (video.readyState === video.HAVE_ENOUGH_DATA) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+        const topLeft = { x: location.topLeftCorner.x * sx, y: location.topLeftCorner.y * sy };
+        const topRight = { x: location.topRightCorner.x * sx, y: location.topRightCorner.y * sy };
+        const bottomRight = { x: location.bottomRightCorner.x * sx, y: location.bottomRightCorner.y * sy };
+        const bottomLeft = { x: location.bottomLeftCorner.x * sx, y: location.bottomLeftCorner.y * sy };
 
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        dibujarLinea(topLeft, topRight, '#22c55e', 4);
+        dibujarLinea(topRight, bottomRight, '#22c55e', 4);
+        dibujarLinea(bottomRight, bottomLeft, '#22c55e', 4);
+        dibujarLinea(bottomLeft, topLeft, '#22c55e', 4);
+      }
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const code = jsQR(imageData.data, imageData.width, imageData.height, {
-        inversionAttempts: 'dontInvert'
-      });
+      function registrarPorGetOculto(url) {
+        const frame = document.getElementById('frameRegistroGet');
+        frame.src = 'about:blank';
 
-      if (code && code.data) {
-        dibujarMarcoQR(code.location);
+        setTimeout(function() {
+          frame.src = url;
+        }, 100);
+      }
 
-        const ahora = Date.now();
-        const contenido = String(code.data).trim();
-
-        if (contenido === ultimoCodigo && (ahora - ultimoTiempoLectura) < 3000) {
-          requestAnimationFrame(leerFrame);
-          return;
-        }
-
-        ultimoCodigo = contenido;
-        ultimoTiempoLectura = ahora;
-        procesando = true;
-        escaneando = false;
-
-        setEstado('QR detectado, procesando...', 'info');
-        contenidoQR.textContent = contenido;
-
+      function extraerDatosQR(contenido) {
         let nombre = '';
         let matricula = '';
 
@@ -570,88 +422,233 @@
           matricula = matriculaMatch ? decodeURIComponent(matriculaMatch[1]) : '';
         }
 
-        idValor.textContent = matricula || '—';
-        nombreValor.textContent = nombre || '—';
-        nombreGrande.textContent = nombre || '';
+        return {
+          nombre: nombre.trim(),
+          matricula: matricula.trim()
+        };
+      }
 
-        if (!matricula || !nombre) {
-          setEstado('QR inválido', 'error');
-          resultado.textContent = 'El QR debe contener matricula y nombre.';
-          beepError();
-          vibrar('error');
+      async function cargarCamaras() {
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            cameraSelect.innerHTML = '<option value="">Tu navegador no soporta cámaras</option>';
+            return;
+          }
 
-          procesando = false;
-          escaneando = true;
-          requestAnimationFrame(leerFrame);
-          return;
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const cameras = devices.filter(device => device.kind === 'videoinput');
+
+          cameraSelect.innerHTML = '';
+
+          if (!cameras.length) {
+            cameraSelect.innerHTML = '<option value="">No se encontraron cámaras</option>';
+            return;
+          }
+
+          cameras.forEach((camera, index) => {
+            const option = document.createElement('option');
+            option.value = camera.deviceId;
+            option.textContent = camera.label || ('Cámara ' + (index + 1));
+            cameraSelect.appendChild(option);
+          });
+
+          const preferida = cameras.find(cam => /back|rear|trasera|environment/i.test(cam.label || ''));
+          camaraSeleccionadaId = preferida ? preferida.deviceId : cameras[0].deviceId;
+          cameraSelect.value = camaraSeleccionadaId;
+
+        } catch (error) {
+          cameraSelect.innerHTML = '<option value="">Error cargando cámaras</option>';
         }
+      }
+
+      async function aplicarCamaraSeleccionada() {
+        camaraSeleccionadaId = cameraSelect.value || '';
+        await iniciarCamara();
+      }
+
+      async function iniciarCamara() {
+        detenerCamara();
+        limpiarPanel();
+        setEstado('Solicitando acceso a la cámara...', 'info');
 
         try {
-          resultado.textContent = 'Registrando asistencia...';
+          if (!window.isSecureContext) {
+            throw new Error('La página no está en contexto seguro HTTPS.');
+          }
 
-          const respuesta = await registrarAsistencia({ matricula, nombre });
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Este navegador no soporta getUserMedia().');
+          }
 
-          setEstado('Registro exitoso', 'ok');
-          resultado.textContent = respuesta.message || 'Asistencia registrada correctamente.';
-          beepOk();
-          vibrar('ok');
+          const constraints = camaraSeleccionadaId
+            ? {
+                video: {
+                  deviceId: { exact: camaraSeleccionadaId },
+                  width: { ideal: 1280 },
+                  height: { ideal: 1280 }
+                },
+                audio: false
+              }
+            : {
+                video: {
+                  facingMode: { ideal: 'environment' },
+                  width: { ideal: 1280 },
+                  height: { ideal: 1280 }
+                },
+                audio: false
+              };
+
+          streamActual = await navigator.mediaDevices.getUserMedia(constraints);
+
+          video.srcObject = streamActual;
+          await video.play();
+
+          ajustarOverlay();
+          await cargarCamaras();
+
+          escaneando = true;
+          procesando = false;
+
+          setEstado('Apunta el QR dentro del recuadro', 'info');
+          resultado.textContent = 'Escaneo continuo activo...';
+
+          requestAnimationFrame(leerFrame);
         } catch (error) {
-          setEstado('Error al registrar', 'error');
-          resultado.textContent = error.message || 'No se pudo registrar la asistencia.';
+          setEstado('No se pudo abrir la cámara', 'error');
+          resultado.textContent = error && error.message ? error.message : String(error);
           beepError();
           vibrar('error');
         }
-
-        setTimeout(function() {
-          procesando = false;
-          escaneando = true;
-          limpiarOverlay();
-          requestAnimationFrame(leerFrame);
-        }, 1800);
-
-        return;
-      } else {
-        limpiarOverlay();
       }
-    }
 
-    requestAnimationFrame(leerFrame);
-  }
+      function leerFrame() {
+        if (!escaneando || procesando) return;
 
-  function detenerCamara() {
-    escaneando = false;
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
 
-    if (streamActual) {
-      streamActual.getTracks().forEach(function(track) {
-        track.stop();
-      });
-      streamActual = null;
-    }
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    video.srcObject = null;
-    limpiarOverlay();
-    setEstado('Cámara detenida', 'info');
-  }
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert'
+          });
 
-  function reiniciarEscaneo() {
-    ultimoCodigo = '';
-    ultimoTiempoLectura = 0;
-    procesando = false;
-    limpiarPanel();
-    setEstado('Reiniciando...', 'info');
-    iniciarCamara();
-  }
+          if (code && code.data) {
+            dibujarMarcoQR(code.location);
 
-  window.addEventListener('resize', ajustarOverlay);
+            const ahora = Date.now();
+            const contenido = String(code.data).trim();
 
-  window.onload = async function() {
-    await cargarCamaras();
-  };
+            if (contenido === ultimoCodigo && (ahora - ultimoTiempoLectura) < 3000) {
+              requestAnimationFrame(leerFrame);
+              return;
+            }
 
-  window.onbeforeunload = function() {
-    detenerCamara();
-  };
-</script>
-    
+            ultimoCodigo = contenido;
+            ultimoTiempoLectura = ahora;
+            procesando = true;
+            escaneando = false;
+
+            setEstado('QR detectado, procesando...', 'info');
+            contenidoQR.textContent = contenido;
+
+            const datos = extraerDatosQR(contenido);
+
+            idValor.textContent = datos.matricula || '—';
+            nombreValor.textContent = datos.nombre || '—';
+            nombreGrande.textContent = datos.nombre || '';
+
+            if (!/^https?:\/\//i.test(contenido)) {
+              setEstado('QR inválido', 'error');
+              resultado.textContent = 'El QR debe contener una URL completa del Web App.';
+              beepError();
+              vibrar('error');
+
+              setTimeout(function() {
+                procesando = false;
+                escaneando = true;
+                limpiarOverlay();
+                requestAnimationFrame(leerFrame);
+              }, 1500);
+              return;
+            }
+
+            if (!datos.matricula || !datos.nombre) {
+              setEstado('QR incompleto', 'error');
+              resultado.textContent = 'La URL debe incluir matricula y nombre.';
+              beepError();
+              vibrar('error');
+
+              setTimeout(function() {
+                procesando = false;
+                escaneando = true;
+                limpiarOverlay();
+                requestAnimationFrame(leerFrame);
+              }, 1500);
+              return;
+            }
+
+            resultado.textContent = 'Registrando asistencia...';
+            setEstado(esIOS_() ? 'Registrando en iPhone/iPad...' : 'Enviando al Web App...', 'info');
+
+            registrarPorGetOculto(contenido);
+
+            setTimeout(function() {
+              setEstado('Registro enviado correctamente', 'ok');
+              resultado.textContent = 'Asistencia enviada al Web App.';
+              beepOk();
+              vibrar('ok');
+
+              procesando = false;
+              escaneando = true;
+              limpiarOverlay();
+              requestAnimationFrame(leerFrame);
+            }, 1800);
+
+            return;
+          } else {
+            limpiarOverlay();
+          }
+        }
+
+        requestAnimationFrame(leerFrame);
+      }
+
+      function detenerCamara() {
+        escaneando = false;
+
+        if (streamActual) {
+          streamActual.getTracks().forEach(function(track) {
+            track.stop();
+          });
+          streamActual = null;
+        }
+
+        video.srcObject = null;
+        limpiarOverlay();
+        setEstado('Cámara detenida', 'info');
+      }
+
+      function reiniciarEscaneo() {
+        ultimoCodigo = '';
+        ultimoTiempoLectura = 0;
+        procesando = false;
+        limpiarPanel();
+        setEstado('Reiniciando...', 'info');
+        iniciarCamara();
+      }
+
+      window.addEventListener('resize', ajustarOverlay);
+
+      window.onload = async function() {
+        await cargarCamaras();
+      };
+
+      window.onbeforeunload = function() {
+        detenerCamara();
+      };
+    </script>
   </body>
 </html>
