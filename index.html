@@ -1,323 +1,315 @@
 <!DOCTYPE html>
-<html lang="es">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Asistencia QR</title>
-  <script src="https://unpkg.com/html5-qrcode"></script>
-  <style>
-    :root {
-      --ok: #137333;
-      --error: #c5221f;
-      --info: #1a73e8;
-      --bg: #f4f6f8;
-      --card: #ffffff;
-      --text: #1f2937;
-      --muted: #6b7280;
-    }
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lector QR</title>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
 
-    * { box-sizing: border-box; }
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        background: #f5f5f5;
+        margin: 0;
+        padding: 16px;
+        text-align: center;
+      }
 
-    body {
-      margin: 0;
-      font-family: Arial, sans-serif;
-      background: var(--bg);
-      color: var(--text);
-    }
+      .contenedor {
+        max-width: 420px;
+        margin: 0 auto;
+        background: #fff;
+        border-radius: 14px;
+        padding: 16px;
+        box-shadow: 0 2px 12px rgba(0,0,0,0.12);
+      }
 
-    .wrap {
-      max-width: 460px;
-      margin: 0 auto;
-      padding: 18px;
-    }
+      h2 {
+        margin: 0 0 14px 0;
+        color: #333;
+      }
 
-    .card {
-      background: var(--card);
-      border-radius: 18px;
-      padding: 18px;
-      box-shadow: 0 8px 24px rgba(0,0,0,.08);
-    }
+      #video {
+        width: 100%;
+        max-width: 360px;
+        border-radius: 12px;
+        background: #000;
+      }
 
-    h1 {
-      margin: 0 0 8px;
-      font-size: 24px;
-      text-align: center;
-    }
+      #canvas {
+        display: none;
+      }
 
-    .sub {
-      margin: 0 0 14px;
-      text-align: center;
-      color: var(--muted);
-      font-size: 14px;
-    }
+      #estado {
+        margin-top: 14px;
+        font-size: 15px;
+        font-weight: bold;
+        color: #333;
+      }
 
-    #reader {
-      width: 100%;
-      overflow: hidden;
-      border-radius: 14px;
-      background: #000;
-    }
+      #resultado {
+        margin-top: 10px;
+        font-size: 14px;
+        color: #555;
+        white-space: pre-line;
+        word-break: break-word;
+        min-height: 40px;
+      }
 
-    .status {
-      margin-top: 14px;
-      padding: 14px;
-      border-radius: 14px;
-      text-align: center;
-      font-weight: bold;
-      min-height: 56px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      white-space: pre-line;
-    }
+      .ok { color: #137333; }
+      .error { color: #c5221f; }
 
-    .status.info {
-      background: #e8f0fe;
-      color: var(--info);
-    }
+      .botones {
+        display: flex;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 16px;
+      }
 
-    .status.ok {
-      background: #e6f4ea;
-      color: var(--ok);
-    }
+      button {
+        border: none;
+        border-radius: 8px;
+        padding: 10px 16px;
+        font-size: 14px;
+        cursor: pointer;
+      }
 
-    .status.error {
-      background: #fce8e6;
-      color: var(--error);
-    }
+      .btn-principal {
+        background: #1a73e8;
+        color: white;
+      }
 
-    .result {
-      margin-top: 10px;
-      padding: 12px;
-      border-radius: 12px;
-      background: #f9fafb;
-      font-size: 14px;
-      white-space: pre-line;
-      word-break: break-word;
-      min-height: 70px;
-    }
+      .btn-secundario {
+        background: #e0e0e0;
+        color: #222;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="contenedor">
+      <h2>Escanear código QR</h2>
 
-    .row {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 10px;
-      margin-top: 14px;
-    }
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
 
-    input, button {
-      width: 100%;
-      border: 0;
-      border-radius: 12px;
-      padding: 14px;
-      font-size: 15px;
-    }
+      <div id="estado">Toca “Activar cámara”</div>
+      <div id="resultado"></div>
 
-    input {
-      background: #f3f4f6;
-    }
-
-    button {
-      background: var(--info);
-      color: #fff;
-      font-weight: bold;
-      cursor: pointer;
-    }
-
-    button.secondary {
-      background: #e5e7eb;
-      color: #111827;
-    }
-
-    .small {
-      font-size: 12px;
-      color: var(--muted);
-      margin-top: 10px;
-      text-align: center;
-    }
-  </style>
-</head>
-<body>
-  <div class="wrap">
-    <div class="card">
-      <h1>Asistencia QR</h1>
-      <p class="sub">Escanea el gafete y registra automáticamente</p>
-
-      <div id="reader"></div>
-
-      <div id="status" class="status info">Listo para activar cámara</div>
-      <div id="result" class="result">Aquí aparecerá el resultado del escaneo.</div>
-
-      <div class="row">
-        <input id="correo" type="email" placeholder="Correo opcional" />
-        <button id="btnStart">Activar cámara</button>
-        <button id="btnStop" class="secondary">Detener cámara</button>
-      </div>
-
-      <div class="small">
-        Formato del QR: <strong>ID|NOMBRE</strong>
+      <div class="botones">
+        <button class="btn-principal" onclick="iniciarCamara()">Activar cámara</button>
+        <button class="btn-principal" onclick="reiniciarEscaneo()">Reiniciar</button>
+        <button class="btn-secundario" onclick="cerrarVentana()">Cerrar</button>
       </div>
     </div>
-  </div>
 
-  <script>
-    const API_URL = "https://script.google.com/macros/s/AKfycbyxnspCTI_iz_tMv7RvG7d83rDZ1pMsyEecf1DsqWybht7N051SWuppy-4YD9vn3S99FQ/exec";
+    <script>
+      const video = document.getElementById('video');
+      const canvas = document.getElementById('canvas');
+      const ctx = canvas.getContext('2d');
+      const estado = document.getElementById('estado');
+      const resultado = document.getElementById('resultado');
 
-    const statusEl = document.getElementById("status");
-    const resultEl = document.getElementById("result");
-    const correoEl = document.getElementById("correo");
-    const btnStart = document.getElementById("btnStart");
-    const btnStop = document.getElementById("btnStop");
+      let streamActual = null;
+      let escaneando = false;
+      let procesando = false;
+      let ultimoCodigo = '';
+      let ultimoTiempoLectura = 0;
 
-    let html5QrCode = null;
-    let cameraRunning = false;
-    let lockScan = false;
-    let lastValue = "";
-    let lastTime = 0;
-
-    function setStatus(type, text) {
-      statusEl.className = "status " + type;
-      statusEl.textContent = text;
-    }
-
-    function setResult(text) {
-      resultEl.textContent = text;
-    }
-
-    function beepOk() {
-      try {
-        const ctx = new (window.AudioContext || window.webkitAudioContext)();
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.type = "sine";
-        osc.frequency.value = 880;
-        gain.gain.value = 0.05;
-        osc.start();
-        setTimeout(() => {
-          osc.stop();
-          ctx.close();
-        }, 120);
-      } catch (_) {}
-    }
-
-    function vibrateOk() {
-      if (navigator.vibrate) {
-        navigator.vibrate([120, 60, 120]);
-      }
-    }
-
-    async function sendToApi(qrText) {
-      const correo = correoEl.value.trim();
-
-      const response = await fetch(API_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "text/plain;charset=utf-8"
-        },
-        body: JSON.stringify({
-          accion: "registrar",
-          qr: qrText,
-          correo: correo
-        })
-      });
-
-      const data = await response.json();
-      return data;
-    }
-
-    async function onScanSuccess(decodedText) {
-      const now = Date.now();
-
-      if (lockScan) return;
-      if (decodedText === lastValue && (now - lastTime) < 3000) return;
-
-      lockScan = true;
-      lastValue = decodedText;
-      lastTime = now;
-
-      setStatus("info", "QR detectado. Registrando...");
-      setResult("Contenido leído:\n" + decodedText);
-
-      try {
-        const res = await sendToApi(decodedText);
-
-        if (res.ok) {
-          beepOk();
-          vibrateOk();
-          setStatus("ok", res.mensaje || "Registro correcto");
-          setResult(
-            "ID: " + (res.id || "") +
-            "\nNombre: " + (res.nombre || "") +
-            "\nQR: " + (res.valor || decodedText)
-          );
-        } else {
-          setStatus("error", res.mensaje || "No se pudo registrar");
-          setResult("Contenido leído:\n" + decodedText);
+      function logCliente(nivel, origen, mensaje, detalle) {
+        try {
+          if (typeof google !== 'undefined' && google.script && google.script.run) {
+            google.script.run.registrarLogCliente(
+              nivel,
+              origen,
+              mensaje,
+              detalle || null
+            );
+          }
+        } catch (e) {
+          console.log('No se pudo enviar log al servidor:', e);
         }
-      } catch (err) {
-        setStatus("error", "Error de conexión con el servidor");
-        setResult(err.message || String(err));
       }
 
-      setTimeout(() => {
-        lockScan = false;
-        setStatus("info", "Listo para el siguiente escaneo");
-      }, 1800);
-    }
+      async function iniciarCamara() {
+        detenerCamara();
+        estado.className = '';
+        resultado.className = '';
+        estado.textContent = 'Solicitando acceso a la cámara...';
+        resultado.textContent = '';
 
-    function onScanFailure(_) {
-      // sin ruido visual
-    }
+        logCliente('INFO', 'Scanner.html', 'Intentando iniciar cámara');
 
-    async function startScanner() {
-      try {
-        if (!html5QrCode) {
-          html5QrCode = new Html5Qrcode("reader");
+        try {
+          if (!window.isSecureContext) {
+            throw new Error('La página no está en contexto seguro HTTPS.');
+          }
+
+          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            throw new Error('Este navegador no soporta getUserMedia().');
+          }
+
+          const constraints = {
+            video: {
+              facingMode: { ideal: 'environment' },
+              width: { ideal: 1280 },
+              height: { ideal: 720 }
+            },
+            audio: false
+          };
+
+          streamActual = await navigator.mediaDevices.getUserMedia(constraints);
+          video.srcObject = streamActual;
+          await video.play();
+
+          escaneando = true;
+          procesando = false;
+          estado.textContent = 'Apunta la cámara al código QR';
+
+          logCliente('INFO', 'Scanner.html', 'Cámara iniciada correctamente');
+
+          requestAnimationFrame(leerFrame);
+        } catch (error) {
+          estado.textContent = 'No se pudo abrir la cámara';
+          estado.className = 'error';
+          resultado.className = 'error';
+          resultado.textContent =
+            'Error: ' + (error && error.name ? error.name : 'desconocido') +
+            '\nDetalle: ' + (error && error.message ? error.message : String(error)) +
+            '\n\nPrueba abrir la URL en Chrome o Safari y permite el acceso a la cámara.';
+
+          logCliente('ERROR', 'Scanner.html', 'Error al iniciar cámara', {
+            name: error && error.name ? error.name : '',
+            message: error && error.message ? error.message : String(error)
+          });
+        }
+      }
+
+      function leerFrame() {
+        if (!escaneando || procesando) return;
+
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+          canvas.width = video.videoWidth;
+          canvas.height = video.videoHeight;
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+          const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height, {
+            inversionAttempts: 'dontInvert'
+          });
+
+          if (code && code.data) {
+            const ahora = Date.now();
+
+            if (code.data === ultimoCodigo && (ahora - ultimoTiempoLectura) < 3000) {
+              requestAnimationFrame(leerFrame);
+              return;
+            }
+
+            ultimoCodigo = code.data;
+            ultimoTiempoLectura = ahora;
+            procesando = true;
+            escaneando = false;
+
+            estado.textContent = 'QR detectado, guardando asistencia...';
+            resultado.textContent = 'Contenido leído: ' + code.data;
+
+            logCliente('INFO', 'Scanner.html', 'QR detectado', { valor: code.data });
+
+            google.script.run
+              .withSuccessHandler(function(res) {
+                if (res && res.ok) {
+                  estado.textContent = res.mensaje || 'Registro correcto';
+                  estado.className = 'ok';
+                  resultado.className = 'ok';
+                  resultado.textContent =
+                    'ID: ' + (res.id || '') +
+                    (res.nombre ? '\nNombre: ' + res.nombre : '') +
+                    '\nQR: ' + (res.valor || code.data);
+
+                  logCliente('INFO', 'Scanner.html', 'Respuesta correcta del servidor', res);
+                } else {
+                  estado.textContent = (res && res.mensaje) ? res.mensaje : 'No se pudo registrar';
+                  estado.className = 'error';
+                  resultado.className = 'error';
+                  resultado.textContent = 'Contenido leído: ' + code.data;
+
+                  logCliente('WARN', 'Scanner.html', 'Respuesta no exitosa del servidor', res || {});
+                }
+
+                detenerCamara();
+              })
+              .withFailureHandler(function(err) {
+                estado.textContent = 'Error al guardar la lectura';
+                estado.className = 'error';
+                resultado.className = 'error';
+                resultado.textContent = err && err.message ? err.message : String(err);
+
+                logCliente('ERROR', 'Scanner.html', 'Error en withFailureHandler', {
+                  message: err && err.message ? err.message : String(err)
+                });
+
+                detenerCamara();
+              })
+              .guardarLecturaQR(code.data);
+
+            return;
+          }
         }
 
-        if (cameraRunning) return;
-
-        setStatus("info", "Solicitando cámara...");
-
-        await html5QrCode.start(
-          { facingMode: "environment" },
-          {
-            fps: 10,
-            qrbox: { width: 240, height: 240 },
-            aspectRatio: 1.3333333,
-            rememberLastUsedCamera: true
-          },
-          onScanSuccess,
-          onScanFailure
-        );
-
-        cameraRunning = true;
-        setStatus("info", "Apunta la cámara al QR");
-        setResult("Esperando lectura...");
-      } catch (err) {
-        setStatus("error", "No se pudo abrir la cámara");
-        setResult(err.message || String(err));
+        requestAnimationFrame(leerFrame);
       }
-    }
 
-    async function stopScanner() {
-      try {
-        if (html5QrCode && cameraRunning) {
-          await html5QrCode.stop();
-          await html5QrCode.clear();
-          cameraRunning = false;
-          html5QrCode = null;
-          setStatus("info", "Cámara detenida");
+      function detenerCamara() {
+        escaneando = false;
+
+        if (streamActual) {
+          streamActual.getTracks().forEach(function(track) {
+            track.stop();
+          });
+          streamActual = null;
         }
-      } catch (err) {
-        setStatus("error", "No se pudo detener la cámara");
-        setResult(err.message || String(err));
-      }
-    }
 
-    btnStart.addEventListener("click", startScanner);
-    btnStop.addEventListener("click", stopScanner);
-  </script>
-</body>
+        video.srcObject = null;
+
+        logCliente('INFO', 'Scanner.html', 'Cámara detenida');
+      }
+
+      function reiniciarEscaneo() {
+        ultimoCodigo = '';
+        ultimoTiempoLectura = 0;
+        procesando = false;
+
+        logCliente('INFO', 'Scanner.html', 'Reinicio manual del escáner');
+
+        iniciarCamara();
+      }
+
+      function cerrarVentana() {
+        detenerCamara();
+        logCliente('INFO', 'Scanner.html', 'Ventana cerrada por el usuario');
+
+        if (typeof google !== 'undefined' && google.script && google.script.host) {
+          google.script.host.close();
+        }
+      }
+
+      window.onerror = function(message, source, lineno, colno, error) {
+        logCliente('ERROR', 'Scanner.html', 'window.onerror', {
+          message: message,
+          source: source,
+          lineno: lineno,
+          colno: colno,
+          stack: error && error.stack ? error.stack : ''
+        });
+      };
+
+      window.onunhandledrejection = function(event) {
+        logCliente('ERROR', 'Scanner.html', 'Promise rechazada sin capturar', {
+          reason: event && event.reason ? String(event.reason) : ''
+        });
+      };
+    </script>
+  </body>
 </html>
