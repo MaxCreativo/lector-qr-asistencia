@@ -56,6 +56,7 @@
         white-space: pre-line;
         word-break: break-word;
         min-height: 88px;
+        background: #f9fafb;
       }
 
       #nombreGrande {
@@ -129,8 +130,12 @@
 
     <iframe name="frameOculto" style="display:none;"></iframe>
 
+    <form id="formEnvio" method="POST" target="frameOculto" style="display:none;">
+      <input type="hidden" name="valor" id="valorInput">
+      <input type="hidden" name="correo" id="correoInput">
+    </form>
+
     <script>
-      // Reemplaza esta URL por tu /exec
       const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxf2L6xpkNAnRTOLCwY--Ja9xC0PQQqoKOUlJd9RRJ3at1juxO-Xt0YFVr2qDv06avptg/exec';
 
       const video = document.getElementById('video');
@@ -139,6 +144,11 @@
       const estado = document.getElementById('estado');
       const resultado = document.getElementById('resultado');
       const nombreGrande = document.getElementById('nombreGrande');
+      const formEnvio = document.getElementById('formEnvio');
+      const valorInput = document.getElementById('valorInput');
+      const correoInput = document.getElementById('correoInput');
+
+      formEnvio.action = WEBAPP_URL;
 
       let streamActual = null;
       let escaneando = false;
@@ -175,23 +185,10 @@
         else navigator.vibrate([200, 80, 200]);
       }
 
-      async function enviarQRAlServidor(valor) {
-        const formData = new URLSearchParams();
-        formData.append('valor', valor);
-        formData.append('correo', '');
-
-        const res = await fetch(WEBAPP_URL, {
-          method: 'POST',
-          body: formData
-        });
-
-        const texto = await res.text();
-
-        try {
-          return JSON.parse(texto);
-        } catch (e) {
-          throw new Error('Respuesta no válida del servidor: ' + texto.substring(0, 200));
-        }
+      function enviarQRAlServidor(valor) {
+        valorInput.value = valor;
+        correoInput.value = '';
+        formEnvio.submit();
       }
 
       async function iniciarCamara() {
@@ -262,58 +259,35 @@
             procesando = true;
             escaneando = false;
 
-            setEstado('QR detectado, registrando...', 'info');
+            setEstado('QR detectado, enviando...', 'info');
             resultado.textContent = 'Contenido leído:\n' + contenido;
 
-            enviarQRAlServidor(contenido)
-              .then(function(res) {
-                if (res && res.ok) {
-                  const tipo = res.tipo || '';
-                  const etiqueta = tipo ? ('\nTipo: ' + tipo) : '';
+            // enviamos por form oculto
+            enviarQRAlServidor(contenido);
 
-                  setEstado(res.mensaje || 'Registro correcto', 'ok');
-                  nombreGrande.textContent = res.nombre || '';
-                  resultado.textContent =
-                    'ID: ' + (res.id || '') +
-                    '\nNombre: ' + (res.nombre || '') +
-                    etiqueta;
+            // feedback visual local
+            const nombreMatch = contenido.match(/[?&]nombre=([^&#]+)/i);
+            const idMatch = contenido.match(/[?&]id=([^&#]+)/i);
 
-                  beepOk();
-                  vibrar('ok');
-                } else {
-                  setEstado((res && res.mensaje) ? res.mensaje : 'No se pudo registrar', 'error');
-                  nombreGrande.textContent = '';
-                  resultado.textContent =
-                    'Contenido leído:\n' + contenido +
-                    '\n\nRespuesta:\n' + JSON.stringify(res);
+            const nombre = nombreMatch ? decodeURIComponent(nombreMatch[1]) : '';
+            const id = idMatch ? decodeURIComponent(idMatch[1]) : '';
 
-                  beepError();
-                  vibrar('error');
-                }
+            nombreGrande.textContent = nombre || '';
+            resultado.textContent =
+              'ID: ' + (id || '') +
+              '\nNombre: ' + (nombre || '') +
+              '\n\nEnviado al servidor. Revisa la hoja Asistencia y Logs.';
 
-                // escaneo continuo automático
-                setTimeout(function() {
-                  procesando = false;
-                  escaneando = true;
-                  setEstado('Listo para el siguiente escaneo', 'info');
-                  requestAnimationFrame(leerFrame);
-                }, 1800);
-              })
-              .catch(function(err) {
-                setEstado('Error al guardar la lectura', 'error');
-                nombreGrande.textContent = '';
-                resultado.textContent = err && err.message ? err.message : String(err);
+            setEstado('Enviado correctamente', 'ok');
+            beepOk();
+            vibrar('ok');
 
-                beepError();
-                vibrar('error');
-
-                setTimeout(function() {
-                  procesando = false;
-                  escaneando = true;
-                  setEstado('Listo para reintentar', 'info');
-                  requestAnimationFrame(leerFrame);
-                }, 2000);
-              });
+            setTimeout(function() {
+              procesando = false;
+              escaneando = true;
+              setEstado('Listo para el siguiente escaneo', 'info');
+              requestAnimationFrame(leerFrame);
+            }, 1800);
 
             return;
           }
