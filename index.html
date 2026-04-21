@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Asistencia QR</title>
+  <script src="https://unpkg.com/html5-qrcode"></script>
+  <style>
+    :root {
+      --ok: #137333;
+      --error: #c5221f;
+      --info: #1a73e8;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --text: #1f2937;
+      --muted: #6b7280;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    .wrap {
+      max-width: 460px;
+      margin: 0 auto;
+      padding: 18px;
+    }
+
+    .card {
+      background: var(--card);
+      border-radius: 18px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(0,0,0,.08);
+    }
+
+    h1 {
+      margin: 0 0 8px;
+      font-size: 24px;
+      text-align: center;
+    }
+
+    .sub {
+      margin: 0 0 14px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    #reader {
+      width: 100%;
+      overflow: hidden;
+      border-radius: 14px;
+      background: #000;
+    }
+
+    .status {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: 14px;
+      text-align: center;
+      font-weight: bold;
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      white-space: pre-line;
+    }
+
+    .status.info {
+      background: #e8f0fe;
+      color: var(--info);
+    }
+
+    .status.ok {
+      background: #e6f4ea;
+      color: var(--ok);
+    }
+
+    .status.error {
+      background: #fce8e6;
+      color: var(--error);
+    }
+
+    .result {
+      margin-top: 10px;
+      padding: 12px;
+      border-radius: 12px;
+      background: #f9fafb;
+      font-size: 14px;
+      white-space: pre-line;
+      word-break: break-word;
+      min-height: 70px;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    input, button {
+      width: 100%;
+      border: 0;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 15px;
+    }
+
+    input {
+      background: #f3f4f6;
+    }
+
+    button {
+      background: var(--info);
+      color: #fff;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button.secondary {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .small {
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 10px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <h1>Asistencia QR</h1>
+      <p class="sub">Escanea el gafete y registra automáticamente</p>
+
+      <div id="reader"></div>
+
+      <div id="status" class="status info">Listo para activar cámara</div>
+      <div id="result" class="result">Aquí aparecerá el resultado del escaneo.</div>
+
+      <div class="row">
+        <input id="correo" type="email" placeholder="Correo opcional" />
+        <button id="btnStart">Activar cámara</button>
+        <button id="btnStop" class="secondary">Detener cámara</button>
+      </div>
+
+      <div class="small">
+        Formato del QR: <strong>ID|NOMBRE</strong>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_URL = "https://script.google.com/macros/s/AKfycbyxnspCTI_iz_tMv7RvG7d83rDZ1pMsyEecf1DsqWybht7N051SWuppy-4YD9vn3S99FQ/exec";
+
+    const statusEl = document.getElementById("status");
+    const resultEl = document.getElementById("result");
+    const correoEl = document.getElementById("correo");
+    const btnStart = document.getElementById("btnStart");
+    const btnStop = document.getElementById("btnStop");
+
+    let html5QrCode = null;
+    let cameraRunning = false;
+    let lockScan = false;
+    let lastValue = "";
+    let lastTime = 0;
+
+    function setStatus(type, text) {
+      statusEl.className = "status " + type;
+      statusEl.textContent = text;
+    }
+
+    function setResult(text) {
+      resultEl.textContent = text;
+    }
+
+    function beepOk() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.type = "sine";
+        osc.frequency.value = 880;
+        gain.gain.value = 0.05;
+        osc.start();
+        setTimeout(() => {
+          osc.stop();
+          ctx.close();
+        }, 120);
+      } catch (_) {}
+    }
+
+    function vibrateOk() {
+      if (navigator.vibrate) {
+        navigator.vibrate([120, 60, 120]);
+      }
+    }
+
+    async function sendToApi(qrText) {
+      const correo = correoEl.value.trim();
+
+      const response = await fetch(API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "text/plain;charset=utf-8"
+        },
+        body: JSON.stringify({
+          accion: "registrar",
+          qr: qrText,
+          correo: correo
+        })
+      });
+
+      const data = await response.json();
+      return data;
+    }
+
+    async function onScanSuccess(decodedText) {
+      const now = Date.now();
+
+      if (lockScan) return;
+      if (decodedText === lastValue && (now - lastTime) < 3000) return;
+
+      lockScan = true;
+      lastValue = decodedText;
+      lastTime = now;
+
+      setStatus("info", "QR detectado. Registrando...");
+      setResult("Contenido leído:\n" + decodedText);
+
+      try {
+        const res = await sendToApi(decodedText);
+
+        if (res.ok) {
+          beepOk();
+          vibrateOk();
+          setStatus("ok", res.mensaje || "Registro correcto");
+          setResult(
+            "ID: " + (res.id || "") +
+            "\nNombre: " + (res.nombre || "") +
+            "\nQR: " + (res.valor || decodedText)
+          );
+        } else {
+          setStatus("error", res.mensaje || "No se pudo registrar");
+          setResult("Contenido leído:\n" + decodedText);
+        }
+      } catch (err) {
+        setStatus("error", "Error de conexión con el servidor");
+        setResult(err.message || String(err));
+      }
+
+      setTimeout(() => {
+        lockScan = false;
+        setStatus("info", "Listo para el siguiente escaneo");
+      }, 1800);
+    }
+
+    function onScanFailure(_) {
+      // sin ruido visual
+    }
+
+    async function startScanner() {
+      try {
+        if (!html5QrCode) {
+          html5QrCode = new Html5Qrcode("reader");
+        }
+
+        if (cameraRunning) return;
+
+        setStatus("info", "Solicitando cámara...");
+
+        await html5QrCode.start(
+          { facingMode: "environment" },
+          {
+            fps: 10,
+            qrbox: { width: 240, height: 240 },
+            aspectRatio: 1.3333333,
+            rememberLastUsedCamera: true
+          },
+          onScanSuccess,
+          onScanFailure
+        );
+
+        cameraRunning = true;
+        setStatus("info", "Apunta la cámara al QR");
+        setResult("Esperando lectura...");
+      } catch (err) {
+        setStatus("error", "No se pudo abrir la cámara");
+        setResult(err.message || String(err));
+      }
+    }
+
+    async function stopScanner() {
+      try {
+        if (html5QrCode && cameraRunning) {
+          await html5QrCode.stop();
+          await html5QrCode.clear();
+          cameraRunning = false;
+          html5QrCode = null;
+          setStatus("info", "Cámara detenida");
+        }
+      } catch (err) {
+        setStatus("error", "No se pudo detener la cámara");
+        setResult(err.message || String(err));
+      }
+    }
+
+    btnStart.addEventListener("click", startScanner);
+    btnStop.addEventListener("click", stopScanner);
+  </script>
+</body>
+</html>
