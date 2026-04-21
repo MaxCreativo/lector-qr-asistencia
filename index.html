@@ -175,7 +175,7 @@
 
       .botones {
         display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-columns: 1fr 1fr 1fr 1fr;
         gap: 10px;
         margin-top: 16px;
       }
@@ -288,6 +288,7 @@
         <button class="btn-principal" type="button" onclick="iniciarCamara()">Activar cámara</button>
         <button class="btn-principal" type="button" onclick="reiniciarEscaneo()">Reiniciar</button>
         <button class="btn-secundario" type="button" onclick="detenerCamara()">Detener</button>
+        <button class="btn-secundario" type="button" onclick="abrirUltimoQR()">Abrir último QR</button>
       </div>
     </div>
 
@@ -299,7 +300,7 @@
     </form>
 
     <script>
-      const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzP5TzEE9A2EqrcX6hxrb0RsazonScrd_awzT2q5ZpU7Zq7T4QEYQiWFKhVCRvDQWDiOw/exec';
+      const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbyRmeGpINGtq8cGTN94b2MhlbAzc_UziO1e99MzCS1z30ZJSxP4DvInpWM-xArtmrM-QA/exec';
 
       const video = document.getElementById('video');
       const canvas = document.getElementById('canvas');
@@ -329,6 +330,7 @@
       let ultimoCodigo = '';
       let ultimoTiempoLectura = 0;
       let camaraSeleccionadaId = '';
+      let ultimoContenidoDetectado = '';
 
       function esIOS_() {
         return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
@@ -415,6 +417,19 @@
         valorInput.value = valor;
         correoInput.value = '';
         formEnvio.submit();
+      }
+
+      function abrirUltimoQR() {
+        if (!ultimoContenidoDetectado) {
+          setEstado('No hay QR leído todavía', 'error');
+          return;
+        }
+
+        if (/^https?:\/\//i.test(ultimoContenidoDetectado)) {
+          window.open(ultimoContenidoDetectado, '_self');
+        } else {
+          setEstado('El último QR no contiene una URL válida', 'error');
+        }
       }
 
       async function cargarCamaras() {
@@ -528,6 +543,7 @@
 
             const ahora = Date.now();
             const contenido = String(code.data).trim();
+            ultimoContenidoDetectado = contenido;
 
             if (contenido === ultimoCodigo && (ahora - ultimoTiempoLectura) < 3000) {
               requestAnimationFrame(leerFrame);
@@ -542,28 +558,40 @@
             setEstado('QR detectado, procesando...', 'info');
             contenidoQR.textContent = contenido;
 
-            const nombreMatch = contenido.match(/[?&]nombre=([^&#]+)/i);
-            const idMatch = contenido.match(/[?&]id=([^&#]+)/i);
+            let nombre = '';
+            let id = '';
 
-            const nombre = nombreMatch ? decodeURIComponent(nombreMatch[1]) : '';
-            const id = idMatch ? decodeURIComponent(idMatch[1]) : '';
+            try {
+              const url = new URL(contenido);
+              nombre = url.searchParams.get('nombre') || '';
+              id = url.searchParams.get('id') || '';
+            } catch (e) {
+              const nombreMatch = contenido.match(/[?&]nombre=([^&#]+)/i);
+              const idMatch = contenido.match(/[?&]id=([^&#]+)/i);
+
+              nombre = nombreMatch ? decodeURIComponent(nombreMatch[1]) : '';
+              id = idMatch ? decodeURIComponent(idMatch[1]) : '';
+            }
 
             idValor.textContent = id || '—';
             nombreValor.textContent = nombre || '—';
             nombreGrande.textContent = nombre || '';
-            resultado.textContent = esIOS_()
-              ? 'Abriendo registro en el iPad/iPhone...'
-              : 'Enviando al servidor...';
 
             if (esIOS_() && /^https?:\/\//i.test(contenido)) {
+              resultado.textContent = 'Abriendo registro en iPhone/iPad...';
+              setEstado('Abriendo registro en iPhone/iPad...', 'info');
               beepOk();
               vibrar('ok');
+              detenerCamara();
+
               setTimeout(function() {
-                window.location.href = contenido;
-              }, 500);
+                window.open(contenido, '_self');
+              }, 400);
+
               return;
             }
 
+            resultado.textContent = 'Enviando al servidor...';
             enviarQRAlServidor(contenido);
 
             setTimeout(function() {
