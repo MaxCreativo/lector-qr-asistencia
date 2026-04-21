@@ -5,126 +5,28 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Asistencia QR</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-
-    <style>
-      body {
-        font-family: Arial, sans-serif;
-        background: #f3f4f6;
-        margin: 0;
-        padding: 16px;
-        text-align: center;
-      }
-
-      .contenedor {
-        max-width: 430px;
-        margin: 0 auto;
-        background: #ffffff;
-        border-radius: 18px;
-        padding: 16px;
-        box-shadow: 0 6px 20px rgba(0,0,0,0.12);
-      }
-
-      h2 {
-        margin: 0 0 12px 0;
-        color: #333;
-      }
-
-      #video {
-        width: 100%;
-        max-width: 360px;
-        border-radius: 14px;
-        background: #000;
-      }
-
-      #canvas {
-        display: none;
-      }
-
-      #estado {
-        margin-top: 14px;
-        font-size: 18px;
-        font-weight: bold;
-        padding: 12px;
-        border-radius: 12px;
-      }
-
-      #resultado {
-        margin-top: 12px;
-        padding: 14px;
-        border-radius: 12px;
-        font-size: 15px;
-        white-space: pre-line;
-        word-break: break-word;
-        min-height: 88px;
-        background: #f9fafb;
-      }
-
-      #nombreGrande {
-        margin-top: 14px;
-        font-size: 28px;
-        font-weight: bold;
-        min-height: 72px;
-        white-space: normal;
-        word-break: break-word;
-      }
-
-      .ok-bg {
-        background: #d1fae5;
-        color: #065f46;
-      }
-
-      .error-bg {
-        background: #fee2e2;
-        color: #991b1b;
-      }
-
-      .info-bg {
-        background: #dbeafe;
-        color: #1e40af;
-      }
-
-      .botones {
-        display: flex;
-        justify-content: center;
-        gap: 10px;
-        flex-wrap: wrap;
-        margin-top: 16px;
-      }
-
-      button {
-        border: none;
-        border-radius: 10px;
-        padding: 12px 16px;
-        font-size: 15px;
-        cursor: pointer;
-      }
-
-      .btn-principal {
-        background: #1a73e8;
-        color: white;
-      }
-
-      .btn-secundario {
-        background: #e5e7eb;
-        color: #111827;
-      }
-    </style>
   </head>
-  <body>
-    <div class="contenedor">
+  <body style="font-family:Arial,sans-serif;text-align:center;padding:16px;background:#f3f4f6;">
+    <div style="max-width:430px;margin:0 auto;background:#fff;border-radius:18px;padding:16px;box-shadow:0 6px 20px rgba(0,0,0,.12);">
       <h2>Control de asistencia QR</h2>
 
-      <video id="video" autoplay playsinline muted></video>
-      <canvas id="canvas"></canvas>
+      <video id="video" autoplay playsinline muted style="width:100%;max-width:360px;border-radius:14px;background:#000;"></video>
+      <canvas id="canvas" style="display:none;"></canvas>
 
-      <div id="estado" class="info-bg">Toca “Activar cámara”</div>
-      <div id="nombreGrande"></div>
-      <div id="resultado">Esperando lectura...</div>
+      <div id="estado" style="margin-top:14px;font-size:18px;font-weight:bold;padding:12px;border-radius:12px;background:#dbeafe;color:#1e40af;">
+        Toca “Activar cámara”
+      </div>
 
-      <div class="botones">
-        <button class="btn-principal" type="button" onclick="iniciarCamara()">Activar cámara</button>
-        <button class="btn-principal" type="button" onclick="reiniciarEscaneo()">Reiniciar</button>
-        <button class="btn-secundario" type="button" onclick="detenerCamara()">Detener</button>
+      <div id="nombreGrande" style="margin-top:14px;font-size:28px;font-weight:bold;min-height:72px;"></div>
+
+      <div id="resultado" style="margin-top:12px;padding:14px;border-radius:12px;font-size:15px;white-space:pre-line;word-break:break-word;min-height:88px;background:#f9fafb;">
+        Esperando lectura...
+      </div>
+
+      <div style="display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:16px;">
+        <button type="button" onclick="iniciarCamara()" style="border:none;border-radius:10px;padding:12px 16px;font-size:15px;background:#1a73e8;color:#fff;">Activar cámara</button>
+        <button type="button" onclick="reiniciarEscaneo()" style="border:none;border-radius:10px;padding:12px 16px;font-size:15px;background:#1a73e8;color:#fff;">Reiniciar</button>
+        <button type="button" onclick="detenerCamara()" style="border:none;border-radius:10px;padding:12px 16px;font-size:15px;background:#e5e7eb;color:#111827;">Detener</button>
       </div>
     </div>
 
@@ -136,7 +38,7 @@
     </form>
 
     <script>
-      const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxf2L6xpkNAnRTOLCwY--Ja9xC0PQQqoKOUlJd9RRJ3at1juxO-Xt0YFVr2qDv06avptg/exec';
+      const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxnwoU0O3MJVXTl1wQtuc2501maRUe3r56uR_fRox1oXDHkDdPFsYS8PONAp4FWdwBmtA/exec';
 
       const video = document.getElementById('video');
       const canvas = document.getElementById('canvas');
@@ -158,31 +60,16 @@
 
       function setEstado(texto, tipo) {
         estado.textContent = texto;
-        estado.className = '';
-
-        if (tipo === 'ok') estado.classList.add('ok-bg');
-        else if (tipo === 'error') estado.classList.add('error-bg');
-        else estado.classList.add('info-bg');
-      }
-
-      function beepOk() {
-        try {
-          const audio = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
-          audio.play();
-        } catch (e) {}
-      }
-
-      function beepError() {
-        try {
-          const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-          audio.play();
-        } catch (e) {}
-      }
-
-      function vibrar(tipo) {
-        if (!navigator.vibrate) return;
-        if (tipo === 'ok') navigator.vibrate([120, 60, 120]);
-        else navigator.vibrate([200, 80, 200]);
+        if (tipo === 'ok') {
+          estado.style.background = '#d1fae5';
+          estado.style.color = '#065f46';
+        } else if (tipo === 'error') {
+          estado.style.background = '#fee2e2';
+          estado.style.color = '#991b1b';
+        } else {
+          estado.style.background = '#dbeafe';
+          estado.style.color = '#1e40af';
+        }
       }
 
       function enviarQRAlServidor(valor) {
@@ -198,20 +85,8 @@
         setEstado('Solicitando acceso a la cámara...', 'info');
 
         try {
-          if (!window.isSecureContext) {
-            throw new Error('La página no está en contexto seguro HTTPS.');
-          }
-
-          if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-            throw new Error('Este navegador no soporta getUserMedia().');
-          }
-
           streamActual = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            },
+            video: { facingMode: { ideal: 'environment' } },
             audio: false
           });
 
@@ -226,9 +101,7 @@
           requestAnimationFrame(leerFrame);
         } catch (error) {
           setEstado('No se pudo abrir la cámara', 'error');
-          resultado.textContent = (error && error.message) ? error.message : String(error);
-          beepError();
-          vibrar('error');
+          resultado.textContent = error && error.message ? error.message : String(error);
         }
       }
 
@@ -260,12 +133,7 @@
             escaneando = false;
 
             setEstado('QR detectado, enviando...', 'info');
-            resultado.textContent = 'Contenido leído:\n' + contenido;
 
-            // enviamos por form oculto
-            enviarQRAlServidor(contenido);
-
-            // feedback visual local
             const nombreMatch = contenido.match(/[?&]nombre=([^&#]+)/i);
             const idMatch = contenido.match(/[?&]id=([^&#]+)/i);
 
@@ -276,16 +144,18 @@
             resultado.textContent =
               'ID: ' + (id || '') +
               '\nNombre: ' + (nombre || '') +
-              '\n\nEnviado al servidor. Revisa la hoja Asistencia y Logs.';
+              '\n\nEnviando al servidor...';
 
-            setEstado('Enviado correctamente', 'ok');
-            beepOk();
-            vibrar('ok');
+            enviarQRAlServidor(contenido);
 
             setTimeout(function() {
+              setEstado('Enviado. Revisa Asistencia, LecturasQR y Logs.', 'ok');
+              resultado.textContent =
+                'ID: ' + (id || '') +
+                '\nNombre: ' + (nombre || '') +
+                '\n\nSe envió al Web App.';
               procesando = false;
               escaneando = true;
-              setEstado('Listo para el siguiente escaneo', 'info');
               requestAnimationFrame(leerFrame);
             }, 1800);
 
@@ -300,9 +170,7 @@
         escaneando = false;
 
         if (streamActual) {
-          streamActual.getTracks().forEach(function(track) {
-            track.stop();
-          });
+          streamActual.getTracks().forEach(track => track.stop());
           streamActual = null;
         }
 
@@ -317,10 +185,6 @@
         resultado.textContent = 'Reiniciando...';
         iniciarCamara();
       }
-
-      window.onbeforeunload = function() {
-        detenerCamara();
-      };
     </script>
   </body>
 </html>
