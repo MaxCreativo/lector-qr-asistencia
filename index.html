@@ -185,7 +185,7 @@
           estado.textContent = 'QR detectado, enviando asistencia...';
           resultado.textContent = 'Contenido leído: ' + code.data;
 
-          enviarQRAlServidor(code.data);
+          enviarQRAlServidor(encodeURIComponent(code.data));
 
           setTimeout(function() {
             estado.textContent = 'Enviado. Revisa la hoja Asistencia y Logs.';
