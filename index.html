@@ -1,224 +1,120 @@
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Lector QR</title>
-  <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #f5f5f5;
-      margin: 0;
-      padding: 16px;
-      text-align: center;
-    }
-    .contenedor {
-      max-width: 420px;
-      margin: 0 auto;
-      background: #fff;
-      border-radius: 14px;
-      padding: 16px;
-      box-shadow: 0 2px 12px rgba(0,0,0,0.12);
-    }
-    h2 { margin: 0 0 14px 0; color: #333; }
-    #video {
-      width: 100%;
-      max-width: 360px;
-      border-radius: 12px;
-      background: #000;
-    }
-    #canvas { display: none; }
-    #estado {
-      margin-top: 14px;
-      font-size: 15px;
-      font-weight: bold;
-      color: #333;
-    }
-    #resultado {
-      margin-top: 10px;
-      font-size: 14px;
-      color: #555;
-      white-space: pre-line;
-      word-break: break-word;
-      min-height: 40px;
-    }
-    .ok { color: #137333; }
-    .error { color: #c5221f; }
-    .botones {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-      margin-top: 16px;
-    }
-    button {
-      border: none;
-      border-radius: 8px;
-      padding: 10px 16px;
-      font-size: 14px;
-      cursor: pointer;
-    }
-    .btn-principal {
-      background: #1a73e8;
-      color: white;
-    }
-  </style>
-</head>
-<body>
-  <div class="contenedor">
-    <h2>Escanear código QR</h2>
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="canvas"></canvas>
+<script>
+  const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbye77YAlvnYpVee8qUQJXRr12hXTA_0EBX20613hpVnRUvefmZrt2doPcU-YOfBu6ZCMw/exec';
 
-    <div id="estado">Toca “Activar cámara”</div>
-    <div id="resultado"></div>
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  const estado = document.getElementById('estado');
+  const resultado = document.getElementById('resultado');
+  const formEnvio = document.getElementById('formEnvio');
+  const valorInput = document.getElementById('valorInput');
+  const correoInput = document.getElementById('correoInput');
 
-    <div class="botones">
-      <button class="btn-principal" onclick="iniciarCamara()">Activar cámara</button>
-      <button class="btn-principal" onclick="reiniciarEscaneo()">Reiniciar</button>
-    </div>
-  </div>
+  formEnvio.action = WEBAPP_URL;
 
-  <iframe name="frameOculto" style="display:none;"></iframe>
+  let streamActual = null;
+  let escaneando = false;
+  let procesando = false;
+  let ultimoCodigo = '';
+  let ultimoTiempoLectura = 0;
 
-  <form id="formEnvio" method="POST" target="frameOculto" style="display:none;">
-    <input type="hidden" name="valor" id="valorInput">
-    <input type="hidden" name="correo" id="correoInput">
-  </form>
+  function enviarQRAlServidor(valor) {
+    valorInput.value = valor;
+    correoInput.value = '';
+    formEnvio.submit();
+  }
 
-  <script>
-    const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbwuSzVR0gZs-mtv1aU-5wMlaUq9KSKQF9GqfYIotD3yIznxTXh92ZqgM4nDIODtZWRnRQ/exec';
+  async function iniciarCamara() {
+    detenerCamara();
+    estado.className = '';
+    resultado.className = '';
+    estado.textContent = 'Solicitando acceso a la cámara...';
+    resultado.textContent = '';
 
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const estado = document.getElementById('estado');
-    const resultado = document.getElementById('resultado');
-    const formEnvio = document.getElementById('formEnvio');
-    const valorInput = document.getElementById('valorInput');
-    const correoInput = document.getElementById('correoInput');
+    try {
+      streamActual = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' }
+        },
+        audio: false
+      });
 
-    formEnvio.action = WEBAPP_URL;
+      video.srcObject = streamActual;
+      await video.play();
 
-    let streamActual = null;
-    let escaneando = false;
-    let procesando = false;
-    let ultimoCodigo = '';
-    let ultimoTiempoLectura = 0;
-
-    function enviarQRAlServidor(valor) {
-      valorInput.value = valor;
-      correoInput.value = '';
-      formEnvio.submit();
-    }
-
-    async function iniciarCamara() {
-      detenerCamara();
-      estado.className = '';
-      resultado.className = '';
-      estado.textContent = 'Solicitando acceso a la cámara...';
-      resultado.textContent = '';
-
-      try {
-        if (!window.isSecureContext) {
-          throw new Error('La página no está en contexto seguro HTTPS.');
-        }
-
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error('Este navegador no soporta getUserMedia().');
-        }
-
-        streamActual = await navigator.mediaDevices.getUserMedia({
-          video: {
-            facingMode: { ideal: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
-          },
-          audio: false
-        });
-
-        video.srcObject = streamActual;
-        await video.play();
-
-        escaneando = true;
-        procesando = false;
-        estado.textContent = 'Apunta la cámara al código QR';
-
-        requestAnimationFrame(leerFrame);
-      } catch (error) {
-        estado.textContent = 'No se pudo abrir la cámara';
-        estado.className = 'error';
-        resultado.className = 'error';
-        resultado.textContent =
-          'Error: ' + (error && error.name ? error.name : 'desconocido') +
-          '\nDetalle: ' + (error && error.message ? error.message : String(error));
-      }
-    }
-
-    function leerFrame() {
-      if (!escaneando || procesando) return;
-
-      if (video.readyState === video.HAVE_ENOUGH_DATA) {
-        canvas.width = video.videoWidth;
-        canvas.height = video.videoHeight;
-        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-        const code = jsQR(imageData.data, imageData.width, imageData.height, {
-          inversionAttempts: 'dontInvert'
-        });
-
-        if (code && code.data) {
-          const ahora = Date.now();
-
-          if (code.data === ultimoCodigo && (ahora - ultimoTiempoLectura) < 3000) {
-            requestAnimationFrame(leerFrame);
-            return;
-          }
-
-          ultimoCodigo = code.data;
-          ultimoTiempoLectura = ahora;
-          procesando = true;
-          escaneando = false;
-
-          estado.textContent = 'QR detectado, enviando asistencia...';
-          resultado.textContent = 'Contenido leído: ' + code.data;
-
-          enviarQRAlServidor(encodeURIComponent(code.data));
-
-          setTimeout(function() {
-            estado.textContent = 'Enviado. Revisa la hoja Asistencia y Logs.';
-            estado.className = 'ok';
-            detenerCamara();
-          }, 1200);
-
-          return;
-        }
-      }
+      escaneando = true;
+      procesando = false;
+      estado.textContent = 'Apunta la cámara al código QR';
 
       requestAnimationFrame(leerFrame);
+    } catch (error) {
+      estado.textContent = 'No se pudo abrir la cámara';
+      estado.className = 'error';
+      resultado.textContent = error.message || String(error);
     }
+  }
 
-    function detenerCamara() {
-      escaneando = false;
+  function leerFrame() {
+    if (!escaneando || procesando) return;
 
-      if (streamActual) {
-        streamActual.getTracks().forEach(function(track) {
-          track.stop();
-        });
-        streamActual = null;
+    if (video.readyState === video.HAVE_ENOUGH_DATA) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: 'dontInvert'
+      });
+
+      if (code && code.data) {
+        const ahora = Date.now();
+
+        if (code.data === ultimoCodigo && (ahora - ultimoTiempoLectura) < 3000) {
+          requestAnimationFrame(leerFrame);
+          return;
+        }
+
+        ultimoCodigo = code.data;
+        ultimoTiempoLectura = ahora;
+        procesando = true;
+        escaneando = false;
+
+        estado.textContent = 'QR detectado, enviando asistencia...';
+        resultado.textContent = 'Contenido leído: ' + code.data;
+
+        enviarQRAlServidor(code.data);
+
+        setTimeout(function() {
+          estado.textContent = 'Enviado. Revisa la hoja Asistencia y Logs.';
+          estado.className = 'ok';
+          detenerCamara();
+        }, 1200);
+
+        return;
       }
-
-      video.srcObject = null;
     }
 
-    function reiniciarEscaneo() {
-      ultimoCodigo = '';
-      ultimoTiempoLectura = 0;
-      procesando = false;
-      iniciarCamara();
+    requestAnimationFrame(leerFrame);
+  }
+
+  function detenerCamara() {
+    escaneando = false;
+
+    if (streamActual) {
+      streamActual.getTracks().forEach(function(track) {
+        track.stop();
+      });
+      streamActual = null;
     }
-  </script>
-</body>
-</html>
+
+    video.srcObject = null;
+  }
+
+  function reiniciarEscaneo() {
+    ultimoCodigo = '';
+    ultimoTiempoLectura = 0;
+    procesando = false;
+    iniciarCamara();
+  }
+</script>
