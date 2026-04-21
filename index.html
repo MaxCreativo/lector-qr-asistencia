@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <base target="_top">
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Lector QR</title>
     <script src="https://cdn.jsdelivr.net/npm/jsqr/dist/jsQR.js"></script>
-
     <style>
       body {
         font-family: Arial, sans-serif;
@@ -15,7 +13,6 @@
         padding: 16px;
         text-align: center;
       }
-
       .contenedor {
         max-width: 420px;
         margin: 0 auto;
@@ -24,30 +21,25 @@
         padding: 16px;
         box-shadow: 0 2px 12px rgba(0,0,0,0.12);
       }
-
       h2 {
         margin: 0 0 14px 0;
         color: #333;
       }
-
       #video {
         width: 100%;
         max-width: 360px;
         border-radius: 12px;
         background: #000;
       }
-
       #canvas {
         display: none;
       }
-
       #estado {
         margin-top: 14px;
         font-size: 15px;
         font-weight: bold;
         color: #333;
       }
-
       #resultado {
         margin-top: 10px;
         font-size: 14px;
@@ -56,10 +48,8 @@
         word-break: break-word;
         min-height: 40px;
       }
-
       .ok { color: #137333; }
       .error { color: #c5221f; }
-
       .botones {
         display: flex;
         justify-content: center;
@@ -67,7 +57,6 @@
         flex-wrap: wrap;
         margin-top: 16px;
       }
-
       button {
         border: none;
         border-radius: 8px;
@@ -75,12 +64,10 @@
         font-size: 14px;
         cursor: pointer;
       }
-
       .btn-principal {
         background: #1a73e8;
         color: white;
       }
-
       .btn-secundario {
         background: #e0e0e0;
         color: #222;
@@ -90,7 +77,6 @@
   <body>
     <div class="contenedor">
       <h2>Escanear código QR</h2>
-
       <video id="video" autoplay playsinline muted></video>
       <canvas id="canvas"></canvas>
 
@@ -100,11 +86,12 @@
       <div class="botones">
         <button class="btn-principal" onclick="iniciarCamara()">Activar cámara</button>
         <button class="btn-principal" onclick="reiniciarEscaneo()">Reiniciar</button>
-        <button class="btn-secundario" onclick="cerrarVentana()">Cerrar</button>
       </div>
     </div>
 
     <script>
+      const WEBAPP_URL = 'PEGA_AQUI_TU_URL_DE_WEBAPP';
+
       const video = document.getElementById('video');
       const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
@@ -117,19 +104,20 @@
       let ultimoCodigo = '';
       let ultimoTiempoLectura = 0;
 
-      function logCliente(nivel, origen, mensaje, detalle) {
-        try {
-          if (typeof google !== 'undefined' && google.script && google.script.run) {
-            google.script.run.registrarLogCliente(
-              nivel,
-              origen,
-              mensaje,
-              detalle || null
-            );
-          }
-        } catch (e) {
-          console.log('No se pudo enviar log al servidor:', e);
-        }
+      async function enviarQRAlServidor(valor) {
+        const res = await fetch(WEBAPP_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'text/plain;charset=utf-8'
+          },
+          body: JSON.stringify({
+            accion: 'guardarLecturaQR',
+            valor: valor,
+            correo: ''
+          })
+        });
+
+        return await res.json();
       }
 
       async function iniciarCamara() {
@@ -138,8 +126,6 @@
         resultado.className = '';
         estado.textContent = 'Solicitando acceso a la cámara...';
         resultado.textContent = '';
-
-        logCliente('INFO', 'Scanner.html', 'Intentando iniciar cámara');
 
         try {
           if (!window.isSecureContext) {
@@ -150,24 +136,21 @@
             throw new Error('Este navegador no soporta getUserMedia().');
           }
 
-          const constraints = {
+          streamActual = await navigator.mediaDevices.getUserMedia({
             video: {
               facingMode: { ideal: 'environment' },
               width: { ideal: 1280 },
               height: { ideal: 720 }
             },
             audio: false
-          };
+          });
 
-          streamActual = await navigator.mediaDevices.getUserMedia(constraints);
           video.srcObject = streamActual;
           await video.play();
 
           escaneando = true;
           procesando = false;
           estado.textContent = 'Apunta la cámara al código QR';
-
-          logCliente('INFO', 'Scanner.html', 'Cámara iniciada correctamente');
 
           requestAnimationFrame(leerFrame);
         } catch (error) {
@@ -176,13 +159,7 @@
           resultado.className = 'error';
           resultado.textContent =
             'Error: ' + (error && error.name ? error.name : 'desconocido') +
-            '\nDetalle: ' + (error && error.message ? error.message : String(error)) +
-            '\n\nPrueba abrir la URL en Chrome o Safari y permite el acceso a la cámara.';
-
-          logCliente('ERROR', 'Scanner.html', 'Error al iniciar cámara', {
-            name: error && error.name ? error.name : '',
-            message: error && error.message ? error.message : String(error)
-          });
+            '\nDetalle: ' + (error && error.message ? error.message : String(error));
         }
       }
 
@@ -215,10 +192,8 @@
             estado.textContent = 'QR detectado, guardando asistencia...';
             resultado.textContent = 'Contenido leído: ' + code.data;
 
-            logCliente('INFO', 'Scanner.html', 'QR detectado', { valor: code.data });
-
-            google.script.run
-              .withSuccessHandler(function(res) {
+            enviarQRAlServidor(code.data)
+              .then(function(res) {
                 if (res && res.ok) {
                   estado.textContent = res.mensaje || 'Registro correcto';
                   estado.className = 'ok';
@@ -227,32 +202,24 @@
                     'ID: ' + (res.id || '') +
                     (res.nombre ? '\nNombre: ' + res.nombre : '') +
                     '\nQR: ' + (res.valor || code.data);
-
-                  logCliente('INFO', 'Scanner.html', 'Respuesta correcta del servidor', res);
                 } else {
                   estado.textContent = (res && res.mensaje) ? res.mensaje : 'No se pudo registrar';
                   estado.className = 'error';
                   resultado.className = 'error';
-                  resultado.textContent = 'Contenido leído: ' + code.data;
-
-                  logCliente('WARN', 'Scanner.html', 'Respuesta no exitosa del servidor', res || {});
+                  resultado.textContent =
+                    'Contenido leído: ' + code.data +
+                    '\nRespuesta servidor: ' + JSON.stringify(res);
                 }
 
                 detenerCamara();
               })
-              .withFailureHandler(function(err) {
+              .catch(function(err) {
                 estado.textContent = 'Error al guardar la lectura';
                 estado.className = 'error';
                 resultado.className = 'error';
                 resultado.textContent = err && err.message ? err.message : String(err);
-
-                logCliente('ERROR', 'Scanner.html', 'Error en withFailureHandler', {
-                  message: err && err.message ? err.message : String(err)
-                });
-
                 detenerCamara();
-              })
-              .guardarLecturaQR(code.data);
+              });
 
             return;
           }
@@ -272,44 +239,14 @@
         }
 
         video.srcObject = null;
-
-        logCliente('INFO', 'Scanner.html', 'Cámara detenida');
       }
 
       function reiniciarEscaneo() {
         ultimoCodigo = '';
         ultimoTiempoLectura = 0;
         procesando = false;
-
-        logCliente('INFO', 'Scanner.html', 'Reinicio manual del escáner');
-
         iniciarCamara();
       }
-
-      function cerrarVentana() {
-        detenerCamara();
-        logCliente('INFO', 'Scanner.html', 'Ventana cerrada por el usuario');
-
-        if (typeof google !== 'undefined' && google.script && google.script.host) {
-          google.script.host.close();
-        }
-      }
-
-      window.onerror = function(message, source, lineno, colno, error) {
-        logCliente('ERROR', 'Scanner.html', 'window.onerror', {
-          message: message,
-          source: source,
-          lineno: lineno,
-          colno: colno,
-          stack: error && error.stack ? error.stack : ''
-        });
-      };
-
-      window.onunhandledrejection = function(event) {
-        logCliente('ERROR', 'Scanner.html', 'Promise rechazada sin capturar', {
-          reason: event && event.reason ? String(event.reason) : ''
-        });
-      };
     </script>
   </body>
 </html>
