@@ -20,7 +20,7 @@
       }
 
       .contenedor {
-        max-width: 900px;
+        max-width: 480px;
         margin: 0 auto;
         background: #ffffff;
         border-radius: 18px;
@@ -42,10 +42,6 @@
         border-radius: 14px;
         padding: 14px;
       }
-      
-      .panel-d-none {
-        display:none;       
-      }
 
       .panel-titulo {
         font-size: 14px;
@@ -58,7 +54,7 @@
 
       .controles {
         display: grid;
-        grid-template-columns: 75px auto 80px;
+        grid-template-columns: 1fr auto;
         gap: 10px;
         align-items: center;
       }
@@ -179,7 +175,7 @@
 
       .botones {
         display: grid;
-        grid-template-columns:75px auto 1fr;
+        grid-template-columns: 1fr 1fr 1fr;
         gap: 10px;
         margin-top: 16px;
       }
@@ -243,8 +239,8 @@
       <h2>Control de asistencia QR</h2>
 
       <div class="panel">
+        <div class="panel-titulo">Cámara</div>
         <div class="controles">
-          <div class="panel-titulo">Cámara</div>
           <select id="cameraSelect">
             <option value="">Cargando cámaras...</option>
           </select>
@@ -289,6 +285,7 @@
       </div>
 
       <div class="botones">
+        <button class="btn-principal" type="button" onclick="iniciarCamara()">Activar cámara</button>
         <button class="btn-principal" type="button" onclick="reiniciarEscaneo()">Reiniciar</button>
         <button class="btn-secundario" type="button" onclick="detenerCamara()">Detener</button>
       </div>
@@ -302,7 +299,7 @@
     </form>
 
     <script>
-      const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbxnwoU0O3MJVXTl1wQtuc2501maRUe3r56uR_fRox1oXDHkDdPFsYS8PONAp4FWdwBmtA/exec';
+      const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzP5TzEE9A2EqrcX6hxrb0RsazonScrd_awzT2q5ZpU7Zq7T4QEYQiWFKhVCRvDQWDiOw/exec';
 
       const video = document.getElementById('video');
       const canvas = document.getElementById('canvas');
@@ -332,6 +329,11 @@
       let ultimoCodigo = '';
       let ultimoTiempoLectura = 0;
       let camaraSeleccionadaId = '';
+
+      function esIOS_() {
+        return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+      }
 
       function setEstado(texto, tipo) {
         estado.textContent = texto;
@@ -537,7 +539,7 @@
             procesando = true;
             escaneando = false;
 
-            setEstado('QR detectado, enviando...', 'info');
+            setEstado('QR detectado, procesando...', 'info');
             contenidoQR.textContent = contenido;
 
             const nombreMatch = contenido.match(/[?&]nombre=([^&#]+)/i);
@@ -549,7 +551,18 @@
             idValor.textContent = id || '—';
             nombreValor.textContent = nombre || '—';
             nombreGrande.textContent = nombre || '';
-            resultado.textContent = 'Enviando al servidor...';
+            resultado.textContent = esIOS_()
+              ? 'Abriendo registro en el iPad/iPhone...'
+              : 'Enviando al servidor...';
+
+            if (esIOS_() && /^https?:\/\//i.test(contenido)) {
+              beepOk();
+              vibrar('ok');
+              setTimeout(function() {
+                window.location.href = contenido;
+              }, 500);
+              return;
+            }
 
             enviarQRAlServidor(contenido);
 
