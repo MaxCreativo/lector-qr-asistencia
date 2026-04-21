@@ -65,9 +65,8 @@
 
       .controles {
         display: grid;
-        grid-template-columns: 1fr auto;
-        gap: 10px;
-        align-items: center;
+        grid-template-columns: 1fr;
+        gap: 12px;
       }
 
       select {
@@ -77,6 +76,12 @@
         padding: 12px;
         font-size: 14px;
         background: #fff;
+      }
+
+      .acciones-camara {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        gap: 10px;
       }
 
       .video-wrap {
@@ -131,46 +136,6 @@
         text-align: center;
       }
 
-      #nombreGrande {
-        margin-top: 14px;
-        font-size: 28px;
-        font-weight: bold;
-        text-align: center;
-        line-height: 1.2;
-        min-height: 68px;
-        word-break: break-word;
-        color: #111827;
-      }
-
-      .fila {
-        display: grid;
-        grid-template-columns: 90px 1fr;
-        gap: 8px;
-        align-items: start;
-        margin-bottom: 10px;
-      }
-
-      .fila:last-child {
-        margin-bottom: 0;
-      }
-
-      .etiqueta {
-        font-weight: bold;
-        color: #374151;
-        font-size: 14px;
-      }
-
-      .valor {
-        font-size: 14px;
-        color: #111827;
-        word-break: break-word;
-        white-space: pre-line;
-      }
-
-      #resultado {
-        min-height: 74px;
-      }
-
       #contenidoQR {
         max-height: 120px;
         overflow-y: auto;
@@ -186,13 +151,6 @@
 
       .oculto {
         display: none;
-      }
-
-      .botones {
-        display: grid;
-        grid-template-columns: 1fr 1fr 1fr;
-        gap: 10px;
-        margin-top: 16px;
       }
 
       button {
@@ -349,16 +307,11 @@
           font-size: 21px;
         }
 
-        #nombreGrande {
-          font-size: 24px;
-        }
-
         .fila {
           grid-template-columns: 78px 1fr;
         }
 
-        .botones,
-        .controles {
+        .acciones-camara {
           grid-template-columns: 1fr;
         }
       }
@@ -374,7 +327,12 @@
           <select id="cameraSelect">
             <option value="">Cargando cámaras...</option>
           </select>
-          <button class="btn-principal" type="button" onclick="aplicarCamaraSeleccionada()">Usar cámara</button>
+
+          <div class="acciones-camara">
+            <button class="btn-principal" type="button" onclick="aplicarCamaraSeleccionada()">Activar cámara</button>
+            <button class="btn-principal" type="button" onclick="reiniciarEscaneo()">Reiniciar</button>
+            <button class="btn-secundario" type="button" onclick="detenerCamara()">Detener</button>
+          </div>
         </div>
       </div>
 
@@ -386,28 +344,7 @@
 
       <canvas id="canvas"></canvas>
 
-      <div id="estado" class="info-bg">Selecciona una cámara o activa la predeterminada</div>
-
-      <div id="nombreGrande"></div>
-
-      <div class="panel">
-        <div class="panel-titulo">Resultado del registro</div>
-
-        <div class="fila">
-          <div class="etiqueta">Matrícula</div>
-          <div class="valor" id="idValor">—</div>
-        </div>
-
-        <div class="fila">
-          <div class="etiqueta">Nombre</div>
-          <div class="valor" id="nombreValor">—</div>
-        </div>
-
-        <div class="fila">
-          <div class="etiqueta">Estado</div>
-          <div class="valor" id="resultado">Esperando lectura...</div>
-        </div>
-      </div>
+      <div id="estado" class="info-bg">Selecciona una cámara y activa el escaneo</div>
 
       <div class="panel">
         <div class="panel-header">
@@ -427,12 +364,6 @@
           </button>
         </div>
         <div id="contenidoQR" class="oculto">Sin lectura todavía.</div>
-      </div>
-
-      <div class="botones">
-        <button class="btn-principal" type="button" onclick="iniciarCamara()">Activar cámara</button>
-        <button class="btn-principal" type="button" onclick="reiniciarEscaneo()">Reiniciar</button>
-        <button class="btn-secundario" type="button" onclick="detenerCamara()">Detener</button>
       </div>
     </div>
 
@@ -456,10 +387,6 @@
       const overlayCtx = overlay.getContext('2d');
 
       const estado = document.getElementById('estado');
-      const nombreGrande = document.getElementById('nombreGrande');
-      const idValor = document.getElementById('idValor');
-      const nombreValor = document.getElementById('nombreValor');
-      const resultado = document.getElementById('resultado');
       const contenidoQR = document.getElementById('contenidoQR');
       const cameraSelect = document.getElementById('cameraSelect');
 
@@ -478,11 +405,6 @@
       let temporizadorModal = null;
 
       const BLOQUEO_MS = 8000;
-
-      function esIOS_() {
-        return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
-          (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-      }
 
       function setEstado(texto, tipo) {
         estado.textContent = texto;
@@ -514,10 +436,6 @@
       }
 
       function limpiarPanel() {
-        nombreGrande.textContent = '';
-        idValor.textContent = '—';
-        nombreValor.textContent = '—';
-        resultado.textContent = 'Esperando lectura...';
         contenidoQR.textContent = 'Sin lectura todavía.';
       }
 
@@ -696,7 +614,6 @@
           const preferida = cameras.find(cam => /back|rear|trasera|environment/i.test(cam.label || ''));
           camaraSeleccionadaId = preferida ? preferida.deviceId : cameras[0].deviceId;
           cameraSelect.value = camaraSeleccionadaId;
-
         } catch (error) {
           cameraSelect.innerHTML = '<option value="">Error cargando cámaras</option>';
         }
@@ -708,7 +625,7 @@
       }
 
       async function iniciarCamara() {
-        detenerCamara();
+        detenerCamara(false);
         limpiarPanel();
         setEstado('Solicitando acceso a la cámara...', 'info');
 
@@ -751,14 +668,12 @@
           procesando = false;
 
           setEstado('Apunta el QR dentro del recuadro', 'info');
-          resultado.textContent = 'Escaneo continuo activo...';
-
           requestAnimationFrame(leerFrame);
         } catch (error) {
           setEstado('No se pudo abrir la cámara', 'error');
-          resultado.textContent = error && error.message ? error.message : String(error);
           beepError();
           vibrar('error');
+          mostrarModal('Error al abrir cámara', '', error && error.message ? error.message : 'No se pudo acceder a la cámara.', 'error');
         }
       }
 
@@ -803,40 +718,31 @@
 
             const datos = extraerDatosQR(contenido);
 
-            idValor.textContent = datos.matricula || '—';
-            nombreValor.textContent = datos.nombre || '—';
-            nombreGrande.textContent = datos.nombre || '';
-
             if (!/^https?:\/\//i.test(contenido)) {
               setEstado('QR inválido', 'error');
-              resultado.textContent = 'El QR debe contener una URL completa del Web App.';
               beepError();
               vibrar('error');
-              mostrarModal(datos.nombre || 'Código no válido', datos.matricula || '', 'QR inválido', 'error');
+              mostrarModal(datos.nombre || 'Código no válido', datos.matricula || '', 'El QR debe contener una URL completa.', 'error');
               return;
             }
 
             if (!datos.matricula || !datos.nombre) {
               setEstado('QR incompleto', 'error');
-              resultado.textContent = 'La URL debe incluir matricula y nombre.';
               beepError();
               vibrar('error');
-              mostrarModal(datos.nombre || 'Datos incompletos', datos.matricula || '', 'QR incompleto', 'error');
+              mostrarModal(datos.nombre || 'Datos incompletos', datos.matricula || '', 'La URL debe incluir matrícula y nombre.', 'error');
               return;
             }
 
             marcarEnvio(contenido);
-            resultado.textContent = 'Registrando asistencia...';
             setEstado('Enviando al Web App...', 'info');
 
             registrarPorGetOculto(contenido);
 
             setTimeout(function() {
               setEstado('Registro enviado correctamente', 'ok');
-              resultado.textContent = 'Asistencia enviada una sola vez.';
               beepOk();
               vibrar('ok');
-
               mostrarModal(datos.nombre, datos.matricula, 'Registro exitoso', 'ok');
             }, 1800);
 
@@ -849,7 +755,7 @@
         requestAnimationFrame(leerFrame);
       }
 
-      function detenerCamara() {
+      function detenerCamara(mostrarMensaje = true) {
         escaneando = false;
 
         if (streamActual) {
@@ -861,7 +767,10 @@
 
         video.srcObject = null;
         limpiarOverlay();
-        setEstado('Cámara detenida', 'info');
+
+        if (mostrarMensaje) {
+          setEstado('Cámara detenida', 'info');
+        }
       }
 
       function reiniciarEscaneo() {
@@ -883,7 +792,7 @@
 
         limpiarPanel();
         setEstado('Reiniciando...', 'info');
-        iniciarCamara();
+        aplicarCamaraSeleccionada();
       }
 
       window.addEventListener('resize', ajustarOverlay);
@@ -893,7 +802,7 @@
       };
 
       window.onbeforeunload = function() {
-        detenerCamara();
+        detenerCamara(false);
       };
     </script>
   </body>
