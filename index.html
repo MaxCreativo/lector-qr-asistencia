@@ -47,7 +47,6 @@
         font-size: 14px;
         font-weight: bold;
         color: #374151;
-        margin-bottom: 10px;
         text-transform: uppercase;
         letter-spacing: 0.3px;
       }
@@ -59,14 +58,11 @@
         gap: 10px;
       }
 
-      .panel-header .panel-titulo {
-        margin-bottom: 0;
-      }
-
       .controles {
         display: grid;
         grid-template-columns: 1fr;
         gap: 12px;
+        margin-top: 12px;
       }
 
       select {
@@ -136,6 +132,11 @@
         text-align: center;
       }
 
+      #contenidoQR,
+      #contenidoCamara {
+        min-width: 0;
+      }
+
       #contenidoQR {
         max-height: 120px;
         overflow-y: auto;
@@ -147,6 +148,7 @@
         line-height: 1.35;
         white-space: pre-wrap;
         word-break: break-word;
+        margin-top: 12px;
       }
 
       .oculto {
@@ -307,10 +309,6 @@
           font-size: 21px;
         }
 
-        .fila {
-          grid-template-columns: 78px 1fr;
-        }
-
         .acciones-camara {
           grid-template-columns: 1fr;
         }
@@ -322,16 +320,36 @@
       <h2>Control de asistencia QR</h2>
 
       <div class="panel">
-        <div class="panel-titulo">Cámara</div>
-        <div class="controles">
-          <select id="cameraSelect">
-            <option value="">Cargando cámaras...</option>
-          </select>
+        <div class="panel-header">
+          <div class="panel-titulo">Cámara</div>
+          <button
+            class="btn-icono"
+            type="button"
+            onclick="toggleCamara()"
+            id="btnToggleCamara"
+            aria-label="Ocultar controles de cámara"
+            title="Ocultar controles de cámara"
+          >
+            <svg id="iconoCamara" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M3 3l18 18"></path>
+              <path d="M10.58 10.58A2 2 0 0 0 10 12a2 2 0 0 0 2 2c.52 0 .99-.2 1.34-.54"></path>
+              <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.04 4.19"></path>
+              <path d="M6.61 6.61C4.62 7.9 3.3 10.1 2 12c0 0 3.5 7 10 7 1.73 0 3.24-.5 4.56-1.25"></path>
+            </svg>
+          </button>
+        </div>
 
-          <div class="acciones-camara">
-            <button class="btn-principal" type="button" onclick="aplicarCamaraSeleccionada()">Activar cámara</button>
-            <button class="btn-principal" type="button" onclick="reiniciarEscaneo()">Reiniciar</button>
-            <button class="btn-secundario" type="button" onclick="detenerCamara()">Detener</button>
+        <div id="contenidoCamara">
+          <div class="controles">
+            <select id="cameraSelect">
+              <option value="">Cargando cámaras...</option>
+            </select>
+
+            <div class="acciones-camara">
+              <button class="btn-principal" type="button" onclick="aplicarCamaraSeleccionada()">Activar cámara</button>
+              <button class="btn-principal" type="button" onclick="reiniciarEscaneo()">Reiniciar</button>
+              <button class="btn-secundario" type="button" onclick="detenerCamara()">Detener</button>
+            </div>
           </div>
         </div>
       </div>
@@ -388,7 +406,13 @@
 
       const estado = document.getElementById('estado');
       const contenidoQR = document.getElementById('contenidoQR');
+      const contenidoCamara = document.getElementById('contenidoCamara');
       const cameraSelect = document.getElementById('cameraSelect');
+
+      const audioOk = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
+      const audioError = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+      audioOk.preload = 'auto';
+      audioError.preload = 'auto';
 
       let streamActual = null;
       let escaneando = false;
@@ -403,6 +427,7 @@
 
       let modalAbierto = false;
       let temporizadorModal = null;
+      let audioDesbloqueado = false;
 
       const BLOQUEO_MS = 8000;
 
@@ -415,17 +440,41 @@
         else estado.classList.add('info-bg');
       }
 
+      function desbloquearAudio() {
+        if (audioDesbloqueado) return;
+
+        try {
+          audioOk.muted = true;
+          audioError.muted = true;
+
+          const p1 = audioOk.play();
+          const p2 = audioError.play();
+
+          Promise.allSettled([p1, p2]).then(function() {
+            audioOk.pause();
+            audioError.pause();
+            audioOk.currentTime = 0;
+            audioError.currentTime = 0;
+            audioOk.muted = false;
+            audioError.muted = false;
+            audioDesbloqueado = true;
+          });
+        } catch (e) {}
+      }
+
       function beepOk() {
         try {
-          const audio = new Audio('https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg');
-          audio.play();
+          audioOk.pause();
+          audioOk.currentTime = 0;
+          audioOk.play().catch(function() {});
         } catch (e) {}
       }
 
       function beepError() {
         try {
-          const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
-          audio.play();
+          audioError.pause();
+          audioError.currentTime = 0;
+          audioError.play().catch(function() {});
         } catch (e) {}
       }
 
@@ -521,27 +570,51 @@
         ultimoRegistroTiempo = Date.now();
       }
 
-      function toggleQR() {
-        const oculto = contenidoQR.classList.toggle('oculto');
-        const btn = document.getElementById('btnToggleQR');
-        const icono = document.getElementById('iconoQR');
-
-        if (oculto) {
-          btn.setAttribute('aria-label', 'Mostrar contenido del QR');
-          btn.setAttribute('title', 'Mostrar contenido del QR');
-          icono.innerHTML = `
+      function setEyeIcon(svgEl, abierto) {
+        if (abierto) {
+          svgEl.innerHTML = `
             <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"></path>
             <circle cx="12" cy="12" r="3"></circle>
           `;
         } else {
-          btn.setAttribute('aria-label', 'Ocultar contenido del QR');
-          btn.setAttribute('title', 'Ocultar contenido del QR');
-          icono.innerHTML = `
+          svgEl.innerHTML = `
             <path d="M3 3l18 18"></path>
             <path d="M10.58 10.58A2 2 0 0 0 10 12a2 2 0 0 0 2 2c.52 0 .99-.2 1.34-.54"></path>
             <path d="M9.88 5.09A10.94 10.94 0 0 1 12 5c6.5 0 10 7 10 7a17.6 17.6 0 0 1-3.04 4.19"></path>
             <path d="M6.61 6.61C4.62 7.9 3.3 10.1 2 12c0 0 3.5 7 10 7 1.73 0 3.24-.5 4.56-1.25"></path>
           `;
+        }
+      }
+
+      function toggleQR() {
+        const estaOculto = contenidoQR.classList.toggle('oculto');
+        const btn = document.getElementById('btnToggleQR');
+        const icono = document.getElementById('iconoQR');
+
+        if (estaOculto) {
+          btn.setAttribute('aria-label', 'Mostrar contenido del QR');
+          btn.setAttribute('title', 'Mostrar contenido del QR');
+          setEyeIcon(icono, true);
+        } else {
+          btn.setAttribute('aria-label', 'Ocultar contenido del QR');
+          btn.setAttribute('title', 'Ocultar contenido del QR');
+          setEyeIcon(icono, false);
+        }
+      }
+
+      function toggleCamara() {
+        const estaOculto = contenidoCamara.classList.toggle('oculto');
+        const btn = document.getElementById('btnToggleCamara');
+        const icono = document.getElementById('iconoCamara');
+
+        if (estaOculto) {
+          btn.setAttribute('aria-label', 'Mostrar controles de cámara');
+          btn.setAttribute('title', 'Mostrar controles de cámara');
+          setEyeIcon(icono, true);
+        } else {
+          btn.setAttribute('aria-label', 'Ocultar controles de cámara');
+          btn.setAttribute('title', 'Ocultar controles de cámara');
+          setEyeIcon(icono, false);
         }
       }
 
@@ -620,6 +693,7 @@
       }
 
       async function aplicarCamaraSeleccionada() {
+        desbloquearAudio();
         camaraSeleccionadaId = cameraSelect.value || '';
         await iniciarCamara();
       }
@@ -673,7 +747,12 @@
           setEstado('No se pudo abrir la cámara', 'error');
           beepError();
           vibrar('error');
-          mostrarModal('Error al abrir cámara', '', error && error.message ? error.message : 'No se pudo acceder a la cámara.', 'error');
+          mostrarModal(
+            'Error al abrir cámara',
+            '',
+            error && error.message ? error.message : 'No se pudo acceder a la cámara.',
+            'error'
+          );
         }
       }
 
@@ -722,7 +801,12 @@
               setEstado('QR inválido', 'error');
               beepError();
               vibrar('error');
-              mostrarModal(datos.nombre || 'Código no válido', datos.matricula || '', 'El QR debe contener una URL completa.', 'error');
+              mostrarModal(
+                datos.nombre || 'Código no válido',
+                datos.matricula || '',
+                'El QR debe contener una URL completa.',
+                'error'
+              );
               return;
             }
 
@@ -730,7 +814,12 @@
               setEstado('QR incompleto', 'error');
               beepError();
               vibrar('error');
-              mostrarModal(datos.nombre || 'Datos incompletos', datos.matricula || '', 'La URL debe incluir matrícula y nombre.', 'error');
+              mostrarModal(
+                datos.nombre || 'Datos incompletos',
+                datos.matricula || '',
+                'La URL debe incluir matrícula y nombre.',
+                'error'
+              );
               return;
             }
 
