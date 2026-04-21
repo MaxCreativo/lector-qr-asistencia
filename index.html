@@ -20,7 +20,7 @@
       }
 
       .contenedor {
-        max-width: 460px;
+        max-width: 480px;
         margin: 0 auto;
         background: #ffffff;
         border-radius: 18px;
@@ -32,43 +32,6 @@
         margin: 0 0 14px 0;
         text-align: center;
         font-size: 24px;
-        color: #111827;
-      }
-
-      .video-wrap {
-        display: flex;
-        justify-content: center;
-        margin-bottom: 14px;
-      }
-
-      #video {
-        width: 100%;
-        max-width: 360px;
-        border-radius: 14px;
-        background: #000;
-      }
-
-      #canvas {
-        display: none;
-      }
-
-      #estado {
-        margin-top: 4px;
-        font-size: 18px;
-        font-weight: bold;
-        padding: 12px;
-        border-radius: 12px;
-        text-align: center;
-      }
-
-      #nombreGrande {
-        margin-top: 14px;
-        font-size: 28px;
-        font-weight: bold;
-        text-align: center;
-        line-height: 1.2;
-        min-height: 68px;
-        word-break: break-word;
         color: #111827;
       }
 
@@ -87,6 +50,85 @@
         margin-bottom: 10px;
         text-transform: uppercase;
         letter-spacing: 0.3px;
+      }
+
+      .controles {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 10px;
+        align-items: center;
+      }
+
+      select {
+        width: 100%;
+        border: 1px solid #d1d5db;
+        border-radius: 10px;
+        padding: 12px;
+        font-size: 14px;
+        background: #fff;
+      }
+
+      .video-wrap {
+        position: relative;
+        width: 100%;
+        max-width: 380px;
+        margin: 14px auto 0 auto;
+        border-radius: 16px;
+        overflow: hidden;
+        background: #000;
+      }
+
+      #video {
+        display: block;
+        width: 100%;
+        aspect-ratio: 1 / 1;
+        object-fit: cover;
+        background: #000;
+      }
+
+      #overlay {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      .guia-central {
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        width: 62%;
+        height: 62%;
+        transform: translate(-50%, -50%);
+        border: 3px solid rgba(255,255,255,0.9);
+        border-radius: 16px;
+        box-shadow: 0 0 0 9999px rgba(0,0,0,0.18);
+        pointer-events: none;
+      }
+
+      #canvas {
+        display: none;
+      }
+
+      #estado {
+        margin-top: 14px;
+        font-size: 18px;
+        font-weight: bold;
+        padding: 12px;
+        border-radius: 12px;
+        text-align: center;
+      }
+
+      #nombreGrande {
+        margin-top: 14px;
+        font-size: 28px;
+        font-weight: bold;
+        text-align: center;
+        line-height: 1.2;
+        min-height: 68px;
+        word-break: break-word;
+        color: #111827;
       }
 
       .fila {
@@ -185,7 +227,8 @@
           grid-template-columns: 78px 1fr;
         }
 
-        .botones {
+        .botones,
+        .controles {
           grid-template-columns: 1fr;
         }
       }
@@ -195,12 +238,25 @@
     <div class="contenedor">
       <h2>Control de asistencia QR</h2>
 
+      <div class="panel">
+        <div class="panel-titulo">Cámara</div>
+        <div class="controles">
+          <select id="cameraSelect">
+            <option value="">Cargando cámaras...</option>
+          </select>
+          <button class="btn-principal" type="button" onclick="aplicarCamaraSeleccionada()">Usar cámara</button>
+        </div>
+      </div>
+
       <div class="video-wrap">
         <video id="video" autoplay playsinline muted></video>
+        <canvas id="overlay"></canvas>
+        <div class="guia-central"></div>
       </div>
+
       <canvas id="canvas"></canvas>
 
-      <div id="estado" class="info-bg">Toca “Activar cámara”</div>
+      <div id="estado" class="info-bg">Selecciona una cámara o activa la predeterminada</div>
 
       <div id="nombreGrande"></div>
 
@@ -249,6 +305,9 @@
       const canvas = document.getElementById('canvas');
       const ctx = canvas.getContext('2d');
 
+      const overlay = document.getElementById('overlay');
+      const overlayCtx = overlay.getContext('2d');
+
       const estado = document.getElementById('estado');
       const nombreGrande = document.getElementById('nombreGrande');
       const idValor = document.getElementById('idValor');
@@ -260,6 +319,8 @@
       const valorInput = document.getElementById('valorInput');
       const correoInput = document.getElementById('correoInput');
 
+      const cameraSelect = document.getElementById('cameraSelect');
+
       formEnvio.action = WEBAPP_URL;
 
       let streamActual = null;
@@ -267,18 +328,15 @@
       let procesando = false;
       let ultimoCodigo = '';
       let ultimoTiempoLectura = 0;
+      let camaraSeleccionadaId = '';
 
       function setEstado(texto, tipo) {
         estado.textContent = texto;
         estado.className = '';
 
-        if (tipo === 'ok') {
-          estado.classList.add('ok-bg');
-        } else if (tipo === 'error') {
-          estado.classList.add('error-bg');
-        } else {
-          estado.classList.add('info-bg');
-        }
+        if (tipo === 'ok') estado.classList.add('ok-bg');
+        else if (tipo === 'error') estado.classList.add('error-bg');
+        else estado.classList.add('info-bg');
       }
 
       function beepOk() {
@@ -297,11 +355,8 @@
 
       function vibrar(tipo) {
         if (!navigator.vibrate) return;
-        if (tipo === 'ok') {
-          navigator.vibrate([120, 60, 120]);
-        } else {
-          navigator.vibrate([200, 80, 200]);
-        }
+        if (tipo === 'ok') navigator.vibrate([120, 60, 120]);
+        else navigator.vibrate([200, 80, 200]);
       }
 
       function limpiarPanel() {
@@ -312,10 +367,87 @@
         contenidoQR.textContent = 'Sin lectura todavía.';
       }
 
+      function limpiarOverlay() {
+        overlayCtx.clearRect(0, 0, overlay.width, overlay.height);
+      }
+
+      function ajustarOverlay() {
+        const rect = video.getBoundingClientRect();
+        overlay.width = rect.width;
+        overlay.height = rect.height;
+        limpiarOverlay();
+      }
+
+      function dibujarLinea(inicio, fin, color, ancho) {
+        overlayCtx.beginPath();
+        overlayCtx.moveTo(inicio.x, inicio.y);
+        overlayCtx.lineTo(fin.x, fin.y);
+        overlayCtx.lineWidth = ancho;
+        overlayCtx.strokeStyle = color;
+        overlayCtx.stroke();
+      }
+
+      function dibujarMarcoQR(location) {
+        limpiarOverlay();
+
+        if (!location) return;
+
+        const sx = overlay.width / canvas.width;
+        const sy = overlay.height / canvas.height;
+
+        const topLeft = { x: location.topLeftCorner.x * sx, y: location.topLeftCorner.y * sy };
+        const topRight = { x: location.topRightCorner.x * sx, y: location.topRightCorner.y * sy };
+        const bottomRight = { x: location.bottomRightCorner.x * sx, y: location.bottomRightCorner.y * sy };
+        const bottomLeft = { x: location.bottomLeftCorner.x * sx, y: location.bottomLeftCorner.y * sy };
+
+        dibujarLinea(topLeft, topRight, '#22c55e', 4);
+        dibujarLinea(topRight, bottomRight, '#22c55e', 4);
+        dibujarLinea(bottomRight, bottomLeft, '#22c55e', 4);
+        dibujarLinea(bottomLeft, topLeft, '#22c55e', 4);
+      }
+
       function enviarQRAlServidor(valor) {
         valorInput.value = valor;
         correoInput.value = '';
         formEnvio.submit();
+      }
+
+      async function cargarCamaras() {
+        try {
+          if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+            cameraSelect.innerHTML = '<option value="">Tu navegador no soporta cámaras</option>';
+            return;
+          }
+
+          const devices = await navigator.mediaDevices.enumerateDevices();
+          const cameras = devices.filter(device => device.kind === 'videoinput');
+
+          cameraSelect.innerHTML = '';
+
+          if (!cameras.length) {
+            cameraSelect.innerHTML = '<option value="">No se encontraron cámaras</option>';
+            return;
+          }
+
+          cameras.forEach((camera, index) => {
+            const option = document.createElement('option');
+            option.value = camera.deviceId;
+            option.textContent = camera.label || ('Cámara ' + (index + 1));
+            cameraSelect.appendChild(option);
+          });
+
+          const preferida = cameras.find(cam => /back|rear|trasera|environment/i.test(cam.label || ''));
+          camaraSeleccionadaId = preferida ? preferida.deviceId : cameras[0].deviceId;
+          cameraSelect.value = camaraSeleccionadaId;
+
+        } catch (error) {
+          cameraSelect.innerHTML = '<option value="">Error cargando cámaras</option>';
+        }
+      }
+
+      async function aplicarCamaraSeleccionada() {
+        camaraSeleccionadaId = cameraSelect.value || '';
+        await iniciarCamara();
       }
 
       async function iniciarCamara() {
@@ -332,22 +464,35 @@
             throw new Error('Este navegador no soporta getUserMedia().');
           }
 
-          streamActual = await navigator.mediaDevices.getUserMedia({
-            video: {
-              facingMode: { ideal: 'environment' },
-              width: { ideal: 1280 },
-              height: { ideal: 720 }
-            },
-            audio: false
-          });
+          const constraints = camaraSeleccionadaId
+            ? {
+                video: {
+                  deviceId: { exact: camaraSeleccionadaId },
+                  width: { ideal: 1280 },
+                  height: { ideal: 1280 }
+                },
+                audio: false
+              }
+            : {
+                video: {
+                  width: { ideal: 1280 },
+                  height: { ideal: 1280 }
+                },
+                audio: false
+              };
+
+          streamActual = await navigator.mediaDevices.getUserMedia(constraints);
 
           video.srcObject = streamActual;
           await video.play();
 
+          ajustarOverlay();
+          await cargarCamaras();
+
           escaneando = true;
           procesando = false;
 
-          setEstado('Apunta la cámara al código QR', 'info');
+          setEstado('Apunta el QR dentro del recuadro', 'info');
           resultado.textContent = 'Escaneo continuo activo...';
 
           requestAnimationFrame(leerFrame);
@@ -365,6 +510,7 @@
         if (video.readyState === video.HAVE_ENOUGH_DATA) {
           canvas.width = video.videoWidth;
           canvas.height = video.videoHeight;
+
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
           const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
@@ -373,6 +519,8 @@
           });
 
           if (code && code.data) {
+            dibujarMarcoQR(code.location);
+
             const ahora = Date.now();
             const contenido = String(code.data).trim();
 
@@ -410,10 +558,13 @@
 
               procesando = false;
               escaneando = true;
+              limpiarOverlay();
               requestAnimationFrame(leerFrame);
             }, 1800);
 
             return;
+          } else {
+            limpiarOverlay();
           }
         }
 
@@ -431,6 +582,7 @@
         }
 
         video.srcObject = null;
+        limpiarOverlay();
         setEstado('Cámara detenida', 'info');
       }
 
@@ -442,6 +594,12 @@
         setEstado('Reiniciando...', 'info');
         iniciarCamara();
       }
+
+      window.addEventListener('resize', ajustarOverlay);
+
+      window.onload = async function() {
+        await cargarCamaras();
+      };
 
       window.onbeforeunload = function() {
         detenerCamara();
