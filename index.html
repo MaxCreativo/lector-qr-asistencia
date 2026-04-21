@@ -116,8 +116,14 @@
             correo: ''
           })
         });
-
-        return await res.json();
+      
+        const texto = await res.text();
+      
+        try {
+          return JSON.parse(texto);
+        } catch (e) {
+          throw new Error('La respuesta no es JSON. Respuesta recibida: ' + texto.substring(0, 300));
+        }
       }
 
       async function iniciarCamara() {
